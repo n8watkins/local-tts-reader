@@ -14,6 +14,7 @@ const volumeValue      = document.getElementById("volume-value");
 const fallbackCheck    = document.getElementById("fallback-checkbox");
 const testBtn          = document.getElementById("test-btn");
 const stopBtn          = document.getElementById("stop-btn");
+const testError        = document.getElementById("test-error"); // V4: error display
 
 const PIPER_URL = "http://127.0.0.1:5050";
 const DEFAULTS = {
@@ -85,9 +86,12 @@ async function doCheckPiperStatus() {
     clearTimeout(timer1); // C9 fix: always clear, even on non-abort throws
 
     // /health may not exist on older server versions — try a HEAD on the root
+    // V1 fix: hoist timer2 so clearTimeout runs in catch, not just on success.
+    // Same pattern as the C9 fix for timer1 above.
+    let timer2 = null;
     try {
       const controller2 = new AbortController();
-      const timer2 = setTimeout(() => controller2.abort(), 2500);
+      timer2 = setTimeout(() => controller2.abort(), 2500);
 
       await fetch(`${PIPER_URL}/`, {
         method: "HEAD",
@@ -97,6 +101,7 @@ async function doCheckPiperStatus() {
       clearTimeout(timer2);
       setOnline();
     } catch (_2) {
+      clearTimeout(timer2); // V1 fix: always clear, even on non-abort throws
       setOffline();
     }
   }
@@ -165,6 +170,17 @@ volumeSlider.addEventListener("input", () => {
 
 fallbackCheck.addEventListener("change", saveSettings);
 
+// ─── Test Error Display ───────────────────────────────────────────────────────
+let testErrorTimer = null;
+
+function showTestError(msg) {
+  if (!testError) return;
+  testError.textContent = msg;
+  testError.classList.remove("hidden");
+  clearTimeout(testErrorTimer);
+  testErrorTimer = setTimeout(() => testError.classList.add("hidden"), 5000);
+}
+
 // ─── Test Voice ───────────────────────────────────────────────────────────────
 testBtn.addEventListener("click", () => {
   const engine = engineSelect.value;
@@ -177,6 +193,9 @@ testBtn.addEventListener("click", () => {
   testBtn.textContent = "Playing…";
   testBtn.disabled = true;
 
+  // V4 fix: callback now accepts and checks the response object.
+  // Previously declared () => {} with no params — {ok:false, error:…} was
+  // silently discarded and the user saw no indication of failure.
   chrome.runtime.sendMessage(
     {
       type: "test-voice",
@@ -184,9 +203,13 @@ testBtn.addEventListener("click", () => {
       text: "This is a local text to speech test.",
       settings
     },
-    () => {
+    (response) => {
       testBtn.textContent = "Test Voice";
       testBtn.disabled = false;
+
+      if (response && !response.ok) {
+        showTestError(response.error || "Test failed — check the console for details.");
+      }
     }
   );
 });

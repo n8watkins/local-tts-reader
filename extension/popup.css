@@ -249,6 +249,18 @@ body {
   border-top: 1px solid #313244;
 }
 
+/* ─── Test Error ────────────────────────────────────────────────────────────── */
+.test-error {
+  font-size: 11px;
+  color: #f38ba8;
+  background: #3a1e1e;
+  border: 1px solid #5a2e2e;
+  border-radius: 5px;
+  padding: 5px 9px;
+  line-height: 1.4;
+  margin-top: -2px; /* tuck closer to the buttons */
+}
+
 /* ─── Visibility Helpers ────────────────────────────────────────────────────── */
 .hidden {
   display: none !important;

@@ -33,12 +33,26 @@ function splitIntoChunks(text, maxLength = 350) {
 }
 
 // ─── Fetch Audio from Piper ───────────────────────────────────────────────────
+// V2 fix: 30s per-chunk timeout so a server that accepts TCP but stalls never
+// leaves background.js's await hanging indefinitely. 30s is half of Piper's own
+// 60s process timeout, giving the server time to do its work without blocking forever.
+const FETCH_TIMEOUT_MS = 30_000;
+
 async function fetchPiperAudio(text, piperUrl) {
-  const response = await fetch(piperUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text })
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  let response;
+  try {
+    response = await fetch(piperUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timer); // always clear, whether fetch succeeded, failed, or aborted
+  }
 
   if (!response.ok) {
     let details = "";
@@ -107,7 +121,11 @@ function stopCurrentAudio() {
   if (rejectCurrentPlay) {
     const r = rejectCurrentPlay;
     rejectCurrentPlay = null;
-    r(new Error("Playback stopped")); // settles the pending playBlob Promise
+    // V3 fix: use a sentinel property instead of string comparison so browser
+    // DOMExceptions with coincidentally matching messages are never misidentified.
+    const stopErr = new Error("Playback stopped");
+    stopErr.isStop = true;
+    r(stopErr); // settles the pending playBlob Promise
   }
   if (currentAudio) {
     currentAudio.pause();
@@ -156,7 +174,10 @@ async function playQueue(chunks, piperUrl, volume, rate, sendResponse, generatio
       await playBlob(blob, volume, rate); // C6: rate forwarded
 
     } catch (err) {
-      const wasStopped = err.message === "Playback stopped";
+      // V3 fix: check the sentinel flag, not the message string. Any browser
+      // DOMException or future refactor that produces a matching message string
+      // would previously be misidentified as an intentional stop.
+      const wasStopped = err.isStop === true;
 
       if (!responded && !wasStopped) {
         // C2: first chunk failed for a real reason (server down, bad response, etc.)
@@ -166,11 +187,14 @@ async function playQueue(chunks, piperUrl, volume, rate, sendResponse, generatio
         break;
       }
 
-      // For subsequent chunks, log but keep going (skip the bad chunk)
       if (!wasStopped) {
+        // V5 fix: break instead of continuing. Silently skipping failed chunks
+        // left users with partial audio and no fallback (background already got
+        // {ok:true} after chunk 1). Break on first post-chunk-1 error instead.
         console.error("TTS chunk error:", err);
+        break;
       }
-      // wasStopped: live() will be false, loop exits naturally
+      // wasStopped: live() will be false, loop exits naturally via while condition
     }
   }
 
