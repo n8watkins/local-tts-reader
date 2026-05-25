@@ -182,8 +182,16 @@ async function playQueue(chunks, piperUrl, volume, rate, sendResponse, generatio
       if (!responded && !wasStopped) {
         // C2: first chunk failed for a real reason (server down, bad response, etc.)
         // Report to background so the fallback can trigger.
-        sendResponse({ ok: false, error: err.message });
-        responded = true;
+        //
+        // W1 fix: only send {ok:false} if the session is still live. If the user
+        // stopped us and the in-flight fetch later aborts or errors (e.g. the
+        // 30-second AbortController fires), !live() is true and we must NOT send
+        // a failure response — doing so would cause background.js to trigger the
+        // browser-voice fallback even though the user deliberately stopped reading.
+        if (live()) {
+          sendResponse({ ok: false, error: err.message });
+          responded = true;
+        }
         break;
       }
 

@@ -196,6 +196,12 @@ testBtn.addEventListener("click", () => {
   // V4 fix: callback now accepts and checks the response object.
   // Previously declared () => {} with no params — {ok:false, error:…} was
   // silently discarded and the user saw no indication of failure.
+  //
+  // W2 fix: read chrome.runtime.lastError before touching response. If the
+  // service worker is killed between send and callback, Chrome sets lastError
+  // and delivers response=undefined. Without reading lastError Chrome logs
+  // "Unchecked runtime.lastError" and the user sees no error — button just
+  // silently re-enables.
   chrome.runtime.sendMessage(
     {
       type: "test-voice",
@@ -206,6 +212,12 @@ testBtn.addEventListener("click", () => {
     (response) => {
       testBtn.textContent = "Test Voice";
       testBtn.disabled = false;
+
+      const runtimeErr = chrome.runtime.lastError;
+      if (runtimeErr) {
+        showTestError("Extension error: " + runtimeErr.message);
+        return;
+      }
 
       if (response && !response.ok) {
         showTestError(response.error || "Test failed — check the console for details.");
