@@ -40,7 +40,7 @@ app.use(express.json({ limit: "1mb" }));
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", version: "0.3.0" });
+  res.json({ status: "ok", version: "0.3.1" });
 });
 
 // ─── Validation Helpers ───────────────────────────────────────────────────────
@@ -59,6 +59,8 @@ function validateText(text) {
 }
 
 // ─── Piper Runner ─────────────────────────────────────────────────────────────
+// C10 fix: uses a `settled` flag so the timeout handler and the `close` event
+// can both run without a second reject() call on an already-settled Promise.
 function runPiper({ inputPath, outputPath, voiceModel }) {
   return new Promise((resolve, reject) => {
     const args = [
@@ -77,24 +79,32 @@ function runPiper({ inputPath, outputPath, voiceModel }) {
     let stderr = "";
     proc.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
 
+    // C10: guard flag prevents double-settle when both timeout and close fire
+    let settled = false;
+    const settle = (fn, ...args) => {
+      if (settled) return;
+      settled = true;
+      fn(...args);
+    };
+
     // Timeout guard
     const timer = setTimeout(() => {
       proc.kill("SIGKILL");
-      reject(new Error("Piper process timed out."));
+      settle(reject, new Error("Piper process timed out."));
     }, TIMEOUT_MS);
 
     proc.on("close", (code) => {
       clearTimeout(timer);
       if (code === 0) {
-        resolve();
+        settle(resolve);
       } else {
-        reject(new Error(`Piper exited with code ${code}. Stderr: ${stderr.trim()}`));
+        settle(reject, new Error(`Piper exited with code ${code}. Stderr: ${stderr.trim()}`));
       }
     });
 
     proc.on("error", (err) => {
       clearTimeout(timer);
-      reject(new Error(`Piper process error: ${err.message}`));
+      settle(reject, new Error(`Piper process error: ${err.message}`));
     });
   });
 }
@@ -121,6 +131,11 @@ app.post("/tts", async (req, res) => {
   const inputPath = path.join(OUTPUT_DIR, `${id}.txt`);
   const outputPath = path.join(OUTPUT_DIR, `${id}.wav`);
 
+  const cleanup = () => Promise.allSettled([
+    fs.rm(inputPath,  { force: true }),
+    fs.rm(outputPath, { force: true })
+  ]);
+
   try {
     // Ensure output directory exists
     await fs.mkdir(OUTPUT_DIR, { recursive: true });
@@ -134,20 +149,24 @@ app.post("/tts", async (req, res) => {
     // Stream the WAV back
     res.setHeader("Content-Type", "audio/wav");
     res.setHeader("Cache-Control", "no-store");
-    res.sendFile(outputPath, { root: "/" }, async () => {
-      // Cleanup temp files after send
-      await Promise.allSettled([
-        fs.rm(inputPath,  { force: true }),
-        fs.rm(outputPath, { force: true })
-      ]);
+
+    // C4 fix: accept the err parameter — sendFile calls cb(err) on failure.
+    // If headers haven't been sent yet, send an error response; otherwise log
+    // the truncation (can't change status after streaming has started).
+    res.sendFile(outputPath, { root: "/" }, async (err) => {
+      if (err) {
+        console.error("[/tts] sendFile error:", err.message);
+        if (!res.headersSent) {
+          res.status(500).json({ error: "Failed to stream audio file." });
+        }
+        // If headers were already sent the stream was partially written;
+        // nothing to do except clean up and let the client handle the truncation.
+      }
+      await cleanup();
     });
 
   } catch (err) {
-    // Try to clean up
-    await Promise.allSettled([
-      fs.rm(inputPath,  { force: true }),
-      fs.rm(outputPath, { force: true })
-    ]);
+    await cleanup();
 
     console.error("[/tts] Error:", err.message);
 

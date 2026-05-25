@@ -3,13 +3,17 @@
 
 let currentAudio = null;
 let currentBlobUrl = null;
+let rejectCurrentPlay = null; // C1: lets stopCurrentAudio() settle a pending playBlob() Promise
 let playbackQueue = [];
 let isPlaying = false;
+let playGeneration = 0; // incremented on each new speak request; stale queues self-terminate
 
 // ─── Chunk Splitter ───────────────────────────────────────────────────────────
 function splitIntoChunks(text, maxLength = 350) {
-  // Split by sentence-ending punctuation
-  const sentences = text.match(/[^.!?]+[.!?]+|\S+$/g) || [text];
+  // C3 fix: was \S+$ (matched only the final word); [^.!?]+$ captures the full
+  // trailing clause so unpunctuated text like "Hello world. No period here" keeps
+  // all trailing words instead of dropping everything but "here".
+  const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
 
   const chunks = [];
   let current = "";
@@ -49,36 +53,62 @@ async function fetchPiperAudio(text, piperUrl) {
 }
 
 // ─── Play a Single Audio Blob ─────────────────────────────────────────────────
-function playBlob(blob, volume = 1.0) {
+// C1: stores its own reject in rejectCurrentPlay so stopCurrentAudio() can
+//     settle the Promise immediately when stop is called mid-playback.
+// C5: reads MediaError from e.target.error instead of the undefined e.message.
+// C6: accepts rate and applies it via audio.playbackRate.
+function playBlob(blob, volume = 1.0, rate = 1.0) {
   return new Promise((resolve, reject) => {
-    // Clean up previous
+    // Settle any prior pending playBlob (guard against concurrent calls)
     stopCurrentAudio();
+
+    // Register our reject so stopCurrentAudio can settle this Promise
+    rejectCurrentPlay = reject;
 
     const url = URL.createObjectURL(blob);
     currentBlobUrl = url;
     currentAudio = new Audio(url);
     currentAudio.volume = Math.max(0, Math.min(1, volume));
+    currentAudio.playbackRate = Math.max(0.1, Math.min(4.0, rate)); // C6
 
     currentAudio.onended = () => {
+      rejectCurrentPlay = null;
       URL.revokeObjectURL(url);
       currentBlobUrl = null;
       currentAudio = null;
       resolve();
     };
 
+    // C5 fix: e is a plain Event; the actual error lives at e.target.error (MediaError)
     currentAudio.onerror = (e) => {
+      rejectCurrentPlay = null;
       URL.revokeObjectURL(url);
       currentBlobUrl = null;
       currentAudio = null;
-      reject(new Error("Audio playback error: " + e.message));
+      const mediaErr = e.target?.error;
+      const msg =
+        mediaErr?.message ||
+        (mediaErr?.code != null ? `MediaError code ${mediaErr.code}` : null) ||
+        "unknown audio error";
+      reject(new Error("Audio playback error: " + msg));
     };
 
-    currentAudio.play().catch(reject);
+    currentAudio.play().catch((err) => {
+      rejectCurrentPlay = null;
+      reject(err);
+    });
   });
 }
 
 // ─── Stop Current Audio ───────────────────────────────────────────────────────
+// C1 fix: explicitly rejects the pending playBlob() Promise before clearing
+// audio state, so await playBlob() in playQueue() always settles on stop.
 function stopCurrentAudio() {
+  if (rejectCurrentPlay) {
+    const r = rejectCurrentPlay;
+    rejectCurrentPlay = null;
+    r(new Error("Playback stopped")); // settles the pending playBlob Promise
+  }
   if (currentAudio) {
     currentAudio.pause();
     currentAudio.currentTime = 0;
@@ -98,43 +128,84 @@ function stopAll() {
 }
 
 // ─── Sequential Queue Player ──────────────────────────────────────────────────
-async function playQueue(chunks, piperUrl, volume) {
+// C2 fix: accepts sendResponse and reports after the first chunk result so the
+//         background service worker can detect server-down errors and trigger
+//         the browser-voice fallback.
+// Uses playGeneration to detect when a newer speak request has superseded this one.
+async function playQueue(chunks, piperUrl, volume, rate, sendResponse, generation) {
   isPlaying = true;
   playbackQueue = [...chunks];
+  let responded = false;
 
-  while (playbackQueue.length > 0 && isPlaying) {
+  const live = () => isPlaying && playGeneration === generation;
+
+  while (playbackQueue.length > 0 && live()) {
     const chunk = playbackQueue.shift();
 
     try {
       const blob = await fetchPiperAudio(chunk, piperUrl);
-      if (!isPlaying) break; // Stopped while fetching
-      await playBlob(blob, volume);
+
+      // C2: report first-chunk success so background's speakWithPiper() can resolve
+      if (!responded) {
+        sendResponse({ ok: true });
+        responded = true;
+      }
+
+      if (!live()) break;
+
+      await playBlob(blob, volume, rate); // C6: rate forwarded
+
     } catch (err) {
-      console.error("TTS chunk error:", err);
-      // Continue to next chunk on error rather than stopping entirely
+      const wasStopped = err.message === "Playback stopped";
+
+      if (!responded && !wasStopped) {
+        // C2: first chunk failed for a real reason (server down, bad response, etc.)
+        // Report to background so the fallback can trigger.
+        sendResponse({ ok: false, error: err.message });
+        responded = true;
+        break;
+      }
+
+      // For subsequent chunks, log but keep going (skip the bad chunk)
+      if (!wasStopped) {
+        console.error("TTS chunk error:", err);
+      }
+      // wasStopped: live() will be false, loop exits naturally
     }
   }
 
-  isPlaying = false;
+  // Only reset isPlaying if we're still the active generation
+  if (playGeneration === generation) {
+    isPlaying = false;
+  }
+
+  // Safety net: ensure sendResponse is always called (e.g. empty chunk list)
+  if (!responded) {
+    sendResponse({ ok: true });
+  }
 }
 
 // ─── Message Handler ──────────────────────────────────────────────────────────
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "stop-audio") {
     stopAll();
-    return;
+    return; // no async response needed
   }
 
   if (message.type === "speak-text") {
-    const { text, piperUrl, volume = 1.0 } = message;
+    // C6 fix: destructure rate (was missing — slider setting was silently dropped)
+    const { text, piperUrl, volume = 1.0, rate = 1.0 } = message;
 
-    // Stop whatever is currently playing
+    // Stop previous playback and bump generation so stale queues self-terminate
     stopAll();
+    playGeneration++;
+    const gen = playGeneration;
 
-    // Split into chunks and play sequentially
     const chunks = splitIntoChunks(text);
-    playQueue(chunks, piperUrl, volume).catch((err) => {
+    playQueue(chunks, piperUrl, volume, rate, sendResponse, gen).catch((err) => {
       console.error("Queue playback error:", err);
     });
+
+    return true; // async response — Chrome keeps the message port open
   }
 });

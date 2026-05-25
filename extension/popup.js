@@ -15,7 +15,7 @@ const fallbackCheck    = document.getElementById("fallback-checkbox");
 const testBtn          = document.getElementById("test-btn");
 const stopBtn          = document.getElementById("stop-btn");
 
-const PIPER_URL    = "http://127.0.0.1:5050";
+const PIPER_URL = "http://127.0.0.1:5050";
 const DEFAULTS = {
   engine: "browser",
   rate: 1.0,
@@ -40,26 +40,41 @@ function applyEngineUI(engine) {
   pitchSection.classList.toggle("hidden", isPiper);
 
   if (isPiper) {
-    checkPiperStatus();
+    // C7 fix: scheduleStatusCheck() debounces rapid engine-toggle clicks so
+    // multiple concurrent fetch sequences don't race on the badge.
+    scheduleStatusCheck();
   }
 }
 
 // ─── Piper Status Check ───────────────────────────────────────────────────────
+// C7 fix: statusCheckTimeout is now actually wired up for debouncing.
+// Previously declared but never assigned, allowing rapid engine toggles to
+// fire concurrent fetch sequences that would race on badge text/class updates.
 let statusCheckTimeout = null;
 
-async function checkPiperStatus() {
+function scheduleStatusCheck(delayMs = 300) {
+  clearTimeout(statusCheckTimeout);
+  statusCheckTimeout = setTimeout(doCheckPiperStatus, delayMs);
+}
+
+async function doCheckPiperStatus() {
   piperStatusBadge.textContent = "Checking…";
   piperStatusBadge.className = "status-badge";
 
+  // C9 fix: hoist timer1 to outer scope so we can clearTimeout in the catch
+  // block. Previously the timer was scoped inside try{} and never cleared when
+  // the fetch threw for a non-abort reason, leaking a live timer per check.
+  let timer1 = null;
+
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2500);
+    timer1 = setTimeout(() => controller.abort(), 2500);
 
     const res = await fetch(`${PIPER_URL}/health`, {
       signal: controller.signal
     });
 
-    clearTimeout(timer);
+    clearTimeout(timer1);
 
     if (res.ok) {
       setOnline();
@@ -67,7 +82,9 @@ async function checkPiperStatus() {
       setOffline();
     }
   } catch (_) {
-    // /health may not exist — try a HEAD on the root
+    clearTimeout(timer1); // C9 fix: always clear, even on non-abort throws
+
+    // /health may not exist on older server versions — try a HEAD on the root
     try {
       const controller2 = new AbortController();
       const timer2 = setTimeout(() => controller2.abort(), 2500);

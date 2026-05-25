@@ -51,22 +51,31 @@ async function speakWithBrowser(text, settings) {
 }
 
 // ─── TTS Provider: Local Piper ────────────────────────────────────────────────
+// C2 fix: now awaits a response from offscreen.js that is sent after the first
+// chunk fetch succeeds or fails. This allows server-down errors (and other first-
+// chunk failures) to propagate back so the browser-voice fallback actually fires.
 async function speakWithPiper(text, settings) {
   await ensureOffscreenDocument();
 
-  // First stop any current Piper audio
+  // Stop any current Piper audio first
   chrome.runtime.sendMessage({ type: "stop-audio" }).catch(() => {});
 
-  // Send text to offscreen to handle fetch + playback
-  chrome.runtime.sendMessage({
+  // Await response from offscreen: resolves/rejects after first chunk result.
+  // If the server is unreachable, offscreen sends { ok: false, error: "..." }
+  // and this throws, triggering the fallback in the caller.
+  const response = await chrome.runtime.sendMessage({
     type: "speak-text",
     text,
     piperUrl: PIPER_URL,
     rate: settings.rate ?? 1.0,
     volume: settings.volume ?? 1.0
   }).catch((err) => {
-    console.error("Failed to send message to offscreen:", err);
+    throw new Error(`Failed to reach offscreen document: ${err.message}`);
   });
+
+  if (response && !response.ok) {
+    throw new Error(response.error || "Piper TTS failed");
+  }
 }
 
 // ─── Stop All Playback ────────────────────────────────────────────────────────
@@ -111,6 +120,8 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
   if (settings.engine === "piper") {
     try {
       await speakWithPiper(text, settings);
+      // C2: speakWithPiper now throws on first-chunk failure, so this fallback
+      // actually works for the primary case (server unreachable, server error).
     } catch (err) {
       console.error("Piper TTS failed:", err);
       if (settings.fallbackToBrowser) {
@@ -134,6 +145,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const { engine, text, settings } = message;
 
     if (engine === "piper") {
+      // speakWithPiper now awaits first-chunk result — sendResponse fires after
+      // the first fetch succeeds/fails, giving accurate test feedback.
       speakWithPiper(text, settings)
         .then(() => sendResponse({ ok: true }))
         .catch((err) => sendResponse({ ok: false, error: err.message }));
