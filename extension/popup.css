@@ -1,0 +1,255 @@
+/* ─── Reset & Base ──────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  width: 280px;
+  min-height: 100px;
+}
+
+/* ─── App Shell ─────────────────────────────────────────────────────────────── */
+.app {
+  padding: 12px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ─── Header ────────────────────────────────────────────────────────────────── */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #313244;
+}
+
+.app-icon {
+  font-size: 18px;
+}
+
+.app-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #cba6f7;
+  letter-spacing: 0.02em;
+}
+
+/* ─── Sections ──────────────────────────────────────────────────────────────── */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #a6adc8;
+}
+
+/* ─── Select ────────────────────────────────────────────────────────────────── */
+.select {
+  appearance: none;
+  background: #313244;
+  color: #cdd6f4;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  padding: 6px 28px 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23a6adc8' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.select:hover,
+.select:focus {
+  border-color: #cba6f7;
+}
+
+/* ─── Status Row ────────────────────────────────────────────────────────────── */
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #313244;
+  color: #a6adc8;
+  transition: background 0.2s, color 0.2s;
+}
+
+.status-badge.online {
+  background: #1e3a2a;
+  color: #a6e3a1;
+}
+
+.status-badge.offline {
+  background: #3a1e1e;
+  color: #f38ba8;
+}
+
+.hint {
+  font-size: 11px;
+  color: #6c7086;
+  line-height: 1.4;
+}
+
+.hint code {
+  font-family: "Cascadia Code", "Fira Code", monospace;
+  background: #313244;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+/* ─── Sliders ───────────────────────────────────────────────────────────────── */
+.slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.slider-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #cba6f7;
+  min-width: 28px;
+  text-align: right;
+}
+
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: #45475a;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #cba6f7;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  background: #d4b0ff;
+  transform: scale(1.1);
+}
+
+.slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: #cba6f7;
+  cursor: pointer;
+}
+
+.slider-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #585b70;
+}
+
+/* ─── Checkbox ──────────────────────────────────────────────────────────────── */
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #a6adc8;
+  line-height: 1.4;
+}
+
+.checkbox-label input[type="checkbox"] {
+  accent-color: #cba6f7;
+  margin-top: 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ─── Buttons ───────────────────────────────────────────────────────────────── */
+.actions {
+  flex-direction: row;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.btn {
+  flex: 1;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  outline: none;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  background: #cba6f7;
+  color: #1e1e2e;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-danger {
+  background: #313244;
+  color: #f38ba8;
+  border: 1px solid #45475a;
+}
+
+.btn-danger:hover {
+  background: #3a1e1e;
+  border-color: #f38ba8;
+}
+
+/* ─── Footer ────────────────────────────────────────────────────────────────── */
+.footer-hint {
+  font-size: 11px;
+  color: #585b70;
+  line-height: 1.5;
+  padding-top: 4px;
+  border-top: 1px solid #313244;
+}
+
+/* ─── Visibility Helpers ────────────────────────────────────────────────────── */
+.hidden {
+  display: none !important;
+}

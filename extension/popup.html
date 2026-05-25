@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Local TTS Reader</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="app-header">
+        <span class="app-icon">🔊</span>
+        <h1 class="app-title">Local TTS Reader</h1>
+      </header>
+
+      <!-- Engine Selector -->
+      <section class="section">
+        <label class="label" for="engine-select">TTS Engine</label>
+        <select class="select" id="engine-select">
+          <option value="browser">Browser Voice</option>
+          <option value="piper">Local Piper</option>
+        </select>
+      </section>
+
+      <!-- Piper Status (shown only when Piper is selected) -->
+      <section class="section piper-only" id="piper-status-section">
+        <div class="status-row">
+          <span class="label">Piper Server</span>
+          <span class="status-badge" id="piper-status-badge">Checking…</span>
+        </div>
+        <p class="hint" id="piper-hint">Start <code>node server.js</code> in <code>local-piper-server/</code></p>
+      </section>
+
+      <!-- Rate -->
+      <section class="section">
+        <div class="slider-header">
+          <label class="label" for="rate-slider">Rate</label>
+          <span class="slider-value" id="rate-value">1.0</span>
+        </div>
+        <input
+          class="slider"
+          type="range"
+          id="rate-slider"
+          min="0.5"
+          max="2.5"
+          step="0.1"
+          value="1.0"
+        />
+        <div class="slider-ticks">
+          <span>0.5×</span>
+          <span>1.0×</span>
+          <span>2.5×</span>
+        </div>
+      </section>
+
+      <!-- Pitch (browser only) -->
+      <section class="section browser-only" id="pitch-section">
+        <div class="slider-header">
+          <label class="label" for="pitch-slider">Pitch</label>
+          <span class="slider-value" id="pitch-value">1.0</span>
+        </div>
+        <input
+          class="slider"
+          type="range"
+          id="pitch-slider"
+          min="0.5"
+          max="2.0"
+          step="0.1"
+          value="1.0"
+        />
+        <div class="slider-ticks">
+          <span>0.5×</span>
+          <span>1.0×</span>
+          <span>2.0×</span>
+        </div>
+      </section>
+
+      <!-- Volume -->
+      <section class="section">
+        <div class="slider-header">
+          <label class="label" for="volume-slider">Volume</label>
+          <span class="slider-value" id="volume-value">1.0</span>
+        </div>
+        <input
+          class="slider"
+          type="range"
+          id="volume-slider"
+          min="0"
+          max="1"
+          step="0.05"
+          value="1.0"
+        />
+        <div class="slider-ticks">
+          <span>0%</span>
+          <span>50%</span>
+          <span>100%</span>
+        </div>
+      </section>
+
+      <!-- Fallback option (shown when Piper is selected) -->
+      <section class="section piper-only" id="fallback-section">
+        <label class="checkbox-label">
+          <input type="checkbox" id="fallback-checkbox" checked />
+          <span>Fall back to browser voice if Piper is offline</span>
+        </label>
+      </section>
+
+      <!-- Action Buttons -->
+      <section class="section actions">
+        <button class="btn btn-primary" id="test-btn">Test Voice</button>
+        <button class="btn btn-danger" id="stop-btn">Stop Reading</button>
+      </section>
+
+      <p class="footer-hint">
+        Highlight text on any page, then right-click → <strong>Read selected text</strong>
+      </p>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
