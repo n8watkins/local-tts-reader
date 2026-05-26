@@ -209,26 +209,6 @@ function showError(msg) {
   errTimer = setTimeout(() => testError.classList.add("hidden"), 5000);
 }
 
-// ─── Now Playing Indicator ────────────────────────────────────────────────────
-const playingBar   = document.getElementById("playing-bar");
-const playingLabel = document.getElementById("playing-label");
-
-function syncPlaybackState() {
-  chrome.runtime.sendMessage({ type: "get-playback-state" }, (resp) => {
-    if (chrome.runtime.lastError || !resp) return;
-    if (resp.isPlaying && !resp.isPaused) {
-      playingBar.classList.remove("hidden");
-      playingLabel.textContent = "Playing";
-    } else if (resp.isPaused) {
-      playingBar.classList.remove("hidden");
-      playingLabel.textContent = "Paused";
-    } else {
-      playingBar.classList.add("hidden");
-    }
-  });
-}
-setInterval(syncPlaybackState, 1000);
-
 // ─── Piper Status ─────────────────────────────────────────────────────────────
 async function checkStatus() {
   try {
@@ -276,7 +256,6 @@ async function init() {
 
   updateProfileUI();
   checkStatus();
-  syncPlaybackState();
 }
 
 init();
