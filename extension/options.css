@@ -21,26 +21,35 @@ body {
 .page-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 22px 0 18px;
+  gap: 14px;
+  padding: 20px 0 16px;
   border-bottom: 1px solid #313244;
   margin-bottom: 0;
 }
 
-.page-icon { font-size: 26px; line-height: 1; }
+.page-icon { font-size: 28px; line-height: 1; flex-shrink: 0; }
 
-.page-title-block { flex: 1; }
+.page-header-body { flex: 1; min-width: 0; }
+
+.page-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
 .page-title {
   font-size: 18px;
   font-weight: 700;
   color: #cba6f7;
 }
-.page-subtitle {
-  display: block;
-  font-size: 13px;
-  color: #a6adc8;
-  margin-top: 1px;
+
+.page-tagline {
+  font-size: 12px;
+  color: #6c7086;
+  line-height: 1.5;
 }
+.page-tagline .link { font-size: 12px; }
 
 .page-version {
   font-size: 12px;
@@ -363,6 +372,17 @@ body {
   margin-bottom: 18px;
 }
 
+.favs-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6c7086;
+  background: #313244;
+  border: 1px solid #45475a;
+  border-radius: 8px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
 .toggle-label {
   display: flex;
   align-items: center;
@@ -547,36 +567,6 @@ body {
   color: #a6e3a1;
 }
 
-/* ─── Page Identity Block (above tabs, always visible) ──────────────────────── */
-.page-identity {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 18px 0 16px;
-  border-bottom: 1px solid #313244;
-  margin-bottom: 0;
-}
-
-.page-identity .credits-logo {
-  font-size: 32px;
-  line-height: 1;
-  flex-shrink: 0;
-  margin-bottom: 0;
-}
-
-.page-identity-text { flex: 1; min-width: 0; }
-
-.page-identity .credits-title {
-  font-size: 16px;
-  margin-bottom: 3px;
-}
-
-.page-identity .credits-tagline {
-  font-size: 12px;
-  margin: 0;
-  line-height: 1.5;
-}
-
 /* ─── Credits Tab ────────────────────────────────────────────────────────────── */
 .credits-identity {
   text-align: center;
@@ -675,6 +665,26 @@ body {
   font-size: 12px;
   color: #6c7086;
   margin-top: 12px;
+}
+
+/* GitHub dep-card variant */
+.dep-card-github {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  min-width: unset;
+  max-width: 320px;
+}
+.dep-card-github-icon {
+  color: #cdd6f4;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.dep-card-github-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 /* ─── Modal ──────────────────────────────────────────────────────────────────── */

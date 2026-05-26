@@ -161,6 +161,7 @@ function renderVoices() {
     return;
   }
 
+  updateFavsCount();
   grid.innerHTML = "";
   for (const v of sorted) {
     const isFav = favorites.includes(v);
@@ -211,6 +212,12 @@ function renderVoices() {
   }
 
   renderDeletedLog();
+}
+
+// ─── Voices — Favorites Count ─────────────────────────────────────────────────
+function updateFavsCount() {
+  const el = document.getElementById("favs-count");
+  if (el) el.textContent = `${favorites.length} / ${MAX_FAVORITES} favorites`;
 }
 
 // ─── Voices — Favorite Toggle ─────────────────────────────────────────────────
@@ -489,6 +496,14 @@ function buildProfileEditForm(profile) {
   saveBtn.addEventListener("click", () => {
     const name = nameInput.value.trim();
     if (!name) { nameInput.focus(); return; }
+
+    if (profiles.some(p => p.id !== profile.id && p.name.toLowerCase() === name.toLowerCase())) {
+      nameInput.setCustomValidity("A profile with this name already exists.");
+      nameInput.reportValidity();
+      nameInput.setCustomValidity("");
+      return;
+    }
+
     profile.name   = name;
     profile.voice  = voiceSel.value;
     profile.rate   = parseFloat(rateSlider.value);
@@ -552,8 +567,16 @@ document.getElementById("cp-cancel-btn").addEventListener("click", () => {
 });
 
 document.getElementById("cp-save-btn").addEventListener("click", () => {
-  const name = document.getElementById("cp-name").value.trim();
-  if (!name) { document.getElementById("cp-name").focus(); return; }
+  const nameInput = document.getElementById("cp-name");
+  const name = nameInput.value.trim();
+  if (!name) { nameInput.focus(); return; }
+
+  if (profiles.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+    nameInput.setCustomValidity("A profile with this name already exists.");
+    nameInput.reportValidity();
+    nameInput.setCustomValidity("");
+    return;
+  }
 
   const newP = {
     id:     uuid(),
@@ -675,6 +698,7 @@ async function init() {
   fallback      = stored.fallback;
 
   document.getElementById("favs-only-check").checked = favsOnly;
+  updateFavsCount();
 
   await checkServerStatus();
 
