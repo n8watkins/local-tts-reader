@@ -37,20 +37,20 @@ body {
 }
 .page-subtitle {
   display: block;
-  font-size: 12px;
-  color: #6c7086;
+  font-size: 13px;
+  color: #a6adc8;
   margin-top: 1px;
 }
 
 .page-version {
-  font-size: 11px;
-  color: #45475a;
+  font-size: 12px;
+  color: #6c7086;
 }
 
 .server-badge {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 3px 10px;
+  padding: 4px 12px;
   border-radius: 12px;
   background: #313244;
   color: #6c7086;
@@ -73,16 +73,16 @@ body {
   border: none;
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
-  padding: 12px 20px;
-  font-size: 13px;
+  padding: 13px 22px;
+  font-size: 14px;
   font-weight: 600;
-  color: #6c7086;
+  color: #a6adc8;
   cursor: pointer;
   letter-spacing: 0.01em;
   transition: color 0.15s, border-color 0.15s;
   outline: none;
 }
-.tab:hover  { color: #a6adc8; }
+.tab:hover  { color: #cdd6f4; }
 .tab.active { color: #cba6f7; border-bottom-color: #cba6f7; }
 
 /* ─── Tab Panels ─────────────────────────────────────────────────────────────── */
@@ -98,15 +98,15 @@ body {
 }
 
 .panel-heading {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   color: #cdd6f4;
   flex: 1;
 }
 
 .panel-hint {
-  font-size: 11px;
-  color: #585b70;
+  font-size: 13px;
+  color: #6c7086;
 }
 
 /* ─── Buttons ────────────────────────────────────────────────────────────────── */
@@ -232,7 +232,7 @@ body {
 }
 
 .profile-card-name {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   color: #cdd6f4;
   flex: 1;
@@ -255,13 +255,13 @@ body {
 }
 
 .profile-card-meta {
-  font-size: 11px;
-  color: #585b70;
+  font-size: 13px;
+  color: #a6adc8;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex-shrink: 0;
-  max-width: 200px;
+  max-width: 220px;
 }
 
 .profile-card-btns { display: flex; gap: 6px; flex-shrink: 0; }
@@ -371,7 +371,7 @@ body {
 
 .voice-card-info { flex: 1; min-width: 0; }
 .voice-card-name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #cdd6f4;
   white-space: nowrap;
@@ -379,10 +379,10 @@ body {
   text-overflow: ellipsis;
 }
 .voice-card-file {
-  font-size: 11px;
-  color: #585b70;
+  font-size: 12px;
+  color: #6c7086;
   font-family: "SF Mono", "Fira Code", Consolas, monospace;
-  margin-top: 1px;
+  margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -458,12 +458,12 @@ body {
 }
 
 .settings-group-title {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #585b70;
-  margin-bottom: 12px;
+  color: #a6adc8;
+  margin-bottom: 14px;
 }
 
 .setting-row {
@@ -521,20 +521,65 @@ body {
 
 .credits-section { margin-bottom: 26px; }
 .credits-section-title {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #585b70;
-  margin-bottom: 12px;
+  color: #a6adc8;
+  margin-bottom: 14px;
 }
-.credits-body { font-size: 13px; color: #a6adc8; line-height: 1.6; margin-bottom: 14px; }
+.credits-body { font-size: 14px; color: #bac2de; line-height: 1.7; margin-bottom: 16px; }
 
 .credits-readme-btn {
   display: inline-block;
   text-decoration: none;
   padding: 10px 20px;
+  font-size: 14px;
+}
+
+/* How it works — numbered flow list */
+.how-it-works-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 0;
+}
+
+.how-it-works-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  font-size: 14px;
+  color: #bac2de;
+  line-height: 1.6;
+}
+
+.how-it-works-list strong { color: #cdd6f4; }
+.how-it-works-list em { color: #cba6f7; font-style: normal; }
+.how-it-works-list code {
+  font-family: "SF Mono", "Fira Code", Consolas, monospace;
+  font-size: 12px;
+  background: #313244;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: #a6e3a1;
+}
+
+.flow-step {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #313244;
+  border: 1px solid #45475a;
+  color: #cba6f7;
   font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
 }
 
 .credits-deps { display: flex; gap: 12px; flex-wrap: wrap; }

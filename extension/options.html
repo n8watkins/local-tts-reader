@@ -138,15 +138,68 @@
 
       <!-- ── Credits Tab ───────────────────────────────────────────────────── -->
       <section id="tab-credits" class="tab-panel hidden" role="tabpanel">
-        <h2 class="panel-heading">Credits &amp; Setup</h2>
+        <h2 class="panel-heading">How It Works</h2>
 
         <div class="credits-block">
           <div class="credits-logo">🔊</div>
           <h3 class="credits-title">Local TTS Reader</h3>
           <p class="credits-desc">
-            A Chrome extension that reads selected text aloud using a local
+            A Chrome extension that reads any selected text aloud using a fully local
             <a class="link" href="https://github.com/rhasspy/piper" target="_blank">Piper TTS</a>
-            server — no cloud, no API keys, fully offline.
+            server on your machine — no cloud, no API keys, nothing leaves your computer.
+          </p>
+        </div>
+
+        <div class="credits-section">
+          <h4 class="credits-section-title">The Flow</h4>
+          <ol class="how-it-works-list">
+            <li>
+              <span class="flow-step">1</span>
+              <div>
+                <strong>Highlight text</strong> on any webpage and right-click it.
+                Choose <em>Read selected text</em> from the context menu.
+              </div>
+            </li>
+            <li>
+              <span class="flow-step">2</span>
+              <div>
+                The extension's <strong>background service worker</strong> receives the text
+                and checks if the local Piper server is reachable at
+                <code>http://127.0.0.1:5050</code>.
+              </div>
+            </li>
+            <li>
+              <span class="flow-step">3</span>
+              <div>
+                If Piper is online, the text is split into sentence chunks and sent one at a time
+                to the <strong>local Node.js server</strong>, which calls
+                <code>piper.exe</code> and returns a WAV audio file.
+              </div>
+            </li>
+            <li>
+              <span class="flow-step">4</span>
+              <div>
+                An <strong>offscreen document</strong> (a hidden browser page) receives
+                each WAV chunk and plays it through the Web Audio API — Chrome's Manifest V3
+                service workers can't play audio directly, so this workaround is required.
+              </div>
+            </li>
+            <li>
+              <span class="flow-step">5</span>
+              <div>
+                If Piper is offline and <em>Browser TTS fallback</em> is enabled (see Settings),
+                the browser's built-in voice is used instead.
+              </div>
+            </li>
+          </ol>
+        </div>
+
+        <div class="credits-section">
+          <h4 class="credits-section-title">Profiles</h4>
+          <p class="credits-body">
+            Each <strong>profile</strong> is a named preset that stores a voice, speed, and volume.
+            Create multiple profiles — for example, one fast voice for articles and a slower one for
+            technical content — and switch between them in the popup with the arrow buttons.
           </p>
         </div>
 
@@ -154,7 +207,7 @@
           <h4 class="credits-section-title">Setup &amp; Documentation</h4>
           <p class="credits-body">
             Full installation instructions — including how to download Piper, add voice models,
-            and load the extension — are in the project README.
+            and load the extension — are in the project README on GitHub.
           </p>
           <a class="btn btn-primary credits-readme-btn"
              href="https://github.com/n8watkins/local-tts-reader#readme"
