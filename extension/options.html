@@ -152,6 +152,23 @@
             <span id="settings-server-status">—</span>
           </div>
         </div>
+
+        <div class="settings-group">
+          <h3 class="settings-group-title">Keyboard Shortcuts</h3>
+          <p class="setting-desc settings-shortcut-disclaimer">
+            These shortcuts work on any webpage while the extension is active.
+            They may conflict with shortcuts used by other extensions or websites —
+            we can't guarantee they'll work everywhere. Click a binding to change it.
+          </p>
+          <div class="shortcut-row">
+            <span class="shortcut-label">Read / Stop</span>
+            <button class="shortcut-bind-btn" id="bind-read" data-action="read">Alt+Shift+R</button>
+          </div>
+          <div class="shortcut-row">
+            <span class="shortcut-label">Pause / Resume</span>
+            <button class="shortcut-bind-btn" id="bind-pause" data-action="pause">Alt+Shift+D</button>
+          </div>
+        </div>
       </section>
 
       <!-- ── About Tab ─────────────────────────────────────────────────────────── -->
@@ -180,6 +197,10 @@
             <li>
               <span class="flow-step">5</span>
               <div>If Piper is offline and <em>Browser TTS fallback</em> is on (Settings), the browser's built-in voice is used instead.</div>
+            </li>
+            <li>
+              <span class="flow-step">6</span>
+              <div>Use <strong>keyboard shortcuts</strong> on any page: <kbd>Alt+Shift+R</kbd> to read/stop selected text, <kbd>Alt+Shift+D</kbd> to pause/resume. Both are rebindable in Settings.</div>
             </li>
           </ol>
         </div>

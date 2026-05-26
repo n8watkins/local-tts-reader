@@ -47,13 +47,21 @@ function formatVoiceName(filename) {
   return base;
 }
 
+function qualityFromFilename(filename) {
+  const base  = filename.replace(/\.onnx$/, "");
+  const parts = base.split("-");
+  const tier  = parts[parts.length - 1]?.toLowerCase();
+  const map   = { "x_low": "x_low", "low": "low", "medium": "med", "high": "high" };
+  return map[tier] || null;
+}
+
 function activeProfile() {
   return profiles.find(p => p.id === activeId) || profiles[0] || null;
 }
 
 // ─── Persist ──────────────────────────────────────────────────────────────────
 function save() {
-  chrome.storage.local.set({ profiles, activeId, favorites, deletedVoices, favsOnly, fallback });
+  chrome.storage.local.set({ profiles, activeId, favorites, deletedVoices, favsOnly, fallback, shortcuts });
 }
 
 // ─── Custom Alert Modal ───────────────────────────────────────────────────────
@@ -224,6 +232,14 @@ function renderVoices() {
     const nameEl = document.createElement("span");
     nameEl.className = "voice-card-name";
     nameEl.textContent = (isFav ? "★ " : "") + formatVoiceName(v);
+
+    const quality = qualityFromFilename(v);
+    if (quality) {
+      const badge = document.createElement("span");
+      badge.className = `quality-badge quality-${quality}`;
+      badge.textContent = quality === "x_low" ? "x-low" : quality;
+      nameEl.appendChild(badge);
+    }
 
     const fileEl = document.createElement("span");
     fileEl.className = "voice-card-file";
@@ -704,8 +720,68 @@ function refreshVoiceSelects() {
 }
 
 // ─── Settings Tab ─────────────────────────────────────────────────────────────
+const DEFAULT_SHORTCUTS = { read: "Alt+Shift+R", pause: "Alt+Shift+D" };
+let shortcuts = { ...DEFAULT_SHORTCUTS };
+
+function comboFromEvent(e) {
+  const parts = [];
+  if (e.altKey)   parts.push("Alt");
+  if (e.ctrlKey)  parts.push("Ctrl");
+  if (e.shiftKey) parts.push("Shift");
+  if (e.metaKey)  parts.push("Meta");
+  const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+  if (!["Alt", "Control", "Shift", "Meta"].includes(e.key)) parts.push(key);
+  return parts.join("+");
+}
+
+function renderShortcuts() {
+  const readBtn  = document.getElementById("bind-read");
+  const pauseBtn = document.getElementById("bind-pause");
+  if (readBtn)  readBtn.textContent  = shortcuts.read  || "—";
+  if (pauseBtn) pauseBtn.textContent = shortcuts.pause || "—";
+}
+
+function startListening(btn, action) {
+  btn.textContent = "Press keys…";
+  btn.classList.add("listening");
+
+  function onKey(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    // Require at least one of Ctrl/Alt (Chrome extension constraint)
+    if (!e.ctrlKey && !e.altKey) return;
+    // Require at least one non-modifier key
+    if (["Alt", "Control", "Shift", "Meta"].includes(e.key)) return;
+
+    const combo = comboFromEvent(e);
+    shortcuts[action] = combo;
+    chrome.storage.local.set({ shortcuts });
+    btn.classList.remove("listening");
+    renderShortcuts();
+    document.removeEventListener("keydown", onKey, true);
+    document.removeEventListener("click", onClickOutside, true);
+  }
+
+  function onClickOutside(e) {
+    if (e.target !== btn) {
+      btn.classList.remove("listening");
+      renderShortcuts();
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("click", onClickOutside, true);
+    }
+  }
+
+  document.addEventListener("keydown", onKey, true);
+  document.addEventListener("click", onClickOutside, true);
+}
+
+document.querySelectorAll(".shortcut-bind-btn").forEach(btn => {
+  btn.addEventListener("click", () => startListening(btn, btn.dataset.action));
+});
+
 function renderSettings() {
   document.getElementById("fallback-check").checked = fallback;
+  renderShortcuts();
 }
 
 document.getElementById("fallback-check").addEventListener("change", (e) => {
@@ -731,7 +807,8 @@ async function init() {
     favorites:     [],
     deletedVoices: [],
     favsOnly:      false,
-    fallback:      true
+    fallback:      true,
+    shortcuts:     DEFAULT_SHORTCUTS
   });
 
   if (stored.profiles.length === 0) {
@@ -749,6 +826,7 @@ async function init() {
   deletedVoices = stored.deletedVoices;
   favsOnly      = stored.favsOnly;
   fallback      = stored.fallback;
+  shortcuts     = stored.shortcuts;
 
   document.getElementById("favs-only-check").checked = favsOnly;
   updateFavsCount();

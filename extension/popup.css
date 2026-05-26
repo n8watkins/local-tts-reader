@@ -305,5 +305,34 @@ body {
 .new-profile-cancel { background: #1e1e2e; color: #a6adc8; border: 1px solid #45475a; padding: 8px 0; }
 .new-profile-cancel:hover { background: #45475a; }
 
+/* ─── Now Playing Bar ────────────────────────────────────────────────────────── */
+.playing-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #1e3a2a;
+  border: 1px solid #3a6a4a;
+  border-radius: 8px;
+  margin-top: -4px;
+}
+.playing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #a6e3a1;
+  flex-shrink: 0;
+  animation: playing-pulse 1.4s ease-in-out infinite;
+}
+@keyframes playing-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+.playing-label {
+  font-size: 12px;
+  color: #a6e3a1;
+  font-weight: 600;
+}
+
 /* ─── Utility ────────────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }

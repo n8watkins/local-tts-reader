@@ -8,6 +8,7 @@ let currentDisconnectNodes = null; // stores the active chunk's disconnectNodes 
 let audioCtx = null;             // Web Audio API context — reused across chunks for volume boost
 let playbackQueue = [];
 let isPlaying = false;
+let isPaused  = false; // true while audio is paused mid-queue
 let playGeneration = 0; // incremented on each new speak request; stale queues self-terminate
 
 // ─── Chunk Splitter ───────────────────────────────────────────────────────────
@@ -180,6 +181,7 @@ function stopCurrentAudio() {
 function stopAll() {
   playbackQueue = [];
   isPlaying = false;
+  isPaused  = false;
   stopCurrentAudio();
 }
 
@@ -218,6 +220,9 @@ async function playQueue(chunks, piperUrl, volume, rate, voice, generation) {
   // Only reset isPlaying if we're still the active generation
   if (playGeneration === generation) {
     isPlaying = false;
+    isPaused  = false;
+    // Notify background so it can update the popup's now-playing indicator
+    chrome.runtime.sendMessage({ type: "playback-ended" }).catch(() => {});
   }
 }
 
@@ -226,6 +231,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "stop-audio") {
     stopAll();
     return; // no async response needed
+  }
+
+  if (message.type === "pause-audio") {
+    if (currentAudio && !currentAudio.paused) {
+      currentAudio.pause();
+      isPaused = true;
+    }
+    return;
+  }
+
+  if (message.type === "resume-audio") {
+    if (currentAudio && currentAudio.paused && isPaused) {
+      isPaused = false;
+      currentAudio.play().catch(() => {});
+    }
+    return;
   }
 
   if (message.type === "speak-text") {

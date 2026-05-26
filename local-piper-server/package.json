@@ -1,6 +1,6 @@
 {
   "name": "local-piper-tts-server",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "description": "Local Express server that calls Piper TTS and returns WAV audio",
   "main": "server.js",
   "scripts": {

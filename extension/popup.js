@@ -1,5 +1,6 @@
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PIPER_BASE_URL = "http://127.0.0.1:5050";
+const MAX_PROFILES   = 5;
 
 // ─── DOM References ───────────────────────────────────────────────────────────
 const profileNameEl    = document.getElementById("profile-name");
@@ -99,6 +100,10 @@ nextBtn.addEventListener("click", () => {
 
 // ─── Quick Add Profile (inline form) ─────────────────────────────────────────
 addProfileBtn.addEventListener("click", () => {
+  if (profiles.length >= MAX_PROFILES) {
+    showError(`You're at the ${MAX_PROFILES}-profile limit. Delete one in Settings first.`);
+    return;
+  }
   newProfileForm.classList.remove("hidden");
   newProfileInput.focus();
 });
@@ -111,6 +116,20 @@ newProfileCancel.addEventListener("click", () => {
 function saveNewProfile() {
   const name = newProfileInput.value.trim();
   if (!name) { newProfileInput.focus(); return; }
+
+  if (profiles.length >= MAX_PROFILES) {
+    newProfileForm.classList.add("hidden");
+    newProfileInput.value = "";
+    showError(`You're at the ${MAX_PROFILES}-profile limit. Delete one in Settings first.`);
+    return;
+  }
+
+  if (profiles.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+    newProfileInput.setCustomValidity("A profile with this name already exists.");
+    newProfileInput.reportValidity();
+    newProfileInput.setCustomValidity("");
+    return;
+  }
 
   const base = activeProfile() ?? { voice: "", rate: 1.0, volume: 1.0 };
   const newP = {
@@ -190,6 +209,26 @@ function showError(msg) {
   errTimer = setTimeout(() => testError.classList.add("hidden"), 5000);
 }
 
+// ─── Now Playing Indicator ────────────────────────────────────────────────────
+const playingBar   = document.getElementById("playing-bar");
+const playingLabel = document.getElementById("playing-label");
+
+function syncPlaybackState() {
+  chrome.runtime.sendMessage({ type: "get-playback-state" }, (resp) => {
+    if (chrome.runtime.lastError || !resp) return;
+    if (resp.isPlaying && !resp.isPaused) {
+      playingBar.classList.remove("hidden");
+      playingLabel.textContent = "Playing";
+    } else if (resp.isPaused) {
+      playingBar.classList.remove("hidden");
+      playingLabel.textContent = "Paused";
+    } else {
+      playingBar.classList.add("hidden");
+    }
+  });
+}
+setInterval(syncPlaybackState, 1000);
+
 // ─── Piper Status ─────────────────────────────────────────────────────────────
 async function checkStatus() {
   try {
@@ -237,6 +276,7 @@ async function init() {
 
   updateProfileUI();
   checkStatus();
+  syncPlaybackState();
 }
 
 init();

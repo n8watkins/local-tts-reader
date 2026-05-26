@@ -18,6 +18,7 @@ const { createReadStream } = require("fs");
 const path    = require("path");
 const crypto  = require("crypto");
 const { spawn, exec } = require("child_process");
+const { version } = require("./package.json");
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const PORT       = 5050;
@@ -43,7 +44,7 @@ app.use(express.json({ limit: "1mb" }));
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", version: "0.3.1" });
+  res.json({ status: "ok", version });
 });
 
 // ─── Validation Helpers ───────────────────────────────────────────────────────
@@ -218,10 +219,13 @@ app.get("/voices", async (_req, res) => {
   }
 });
 
-// ─── POST /voices/open-folder  (reveal voices directory in Explorer) ──────────
+// ─── POST /voices/open-folder  (reveal voices directory in file manager) ──────
 app.post("/voices/open-folder", (_req, res) => {
-  // Works on Windows; no-op on other platforms
-  exec(`explorer.exe "${VOICE_DIR}"`, () => {});
+  const cmd =
+    process.platform === "win32"  ? `explorer.exe "${VOICE_DIR}"` :
+    process.platform === "darwin" ? `open "${VOICE_DIR}"` :
+                                    `xdg-open "${VOICE_DIR}"`;
+  exec(cmd, () => {});
   res.json({ ok: true });
 });
 
@@ -254,15 +258,33 @@ app.delete("/voices/:name", async (req, res) => {
   }
 });
 
+// ─── Startup: clean stale WAV files from a previous crashed session ───────────
+async function cleanOutputDir() {
+  try {
+    await fs.mkdir(OUTPUT_DIR, { recursive: true });
+    const files = await fs.readdir(OUTPUT_DIR);
+    const wavs  = files.filter(f => f.endsWith(".wav"));
+    await Promise.allSettled(
+      wavs.map(f => fs.rm(path.join(OUTPUT_DIR, f), { force: true }))
+    );
+    if (wavs.length > 0) {
+      console.log(`[startup] Cleaned ${wavs.length} stale WAV file(s).`);
+    }
+  } catch (_) {}
+}
+
 // ─── Start Server ─────────────────────────────────────────────────────────────
-app.listen(PORT, HOST, () => {
-  console.log(`\n🔊 Local Piper TTS Server`);
-  console.log(`   Running at http://${HOST}:${PORT}`);
-  console.log(`   Health:  GET  http://${HOST}:${PORT}/health`);
-  console.log(`   TTS:     POST http://${HOST}:${PORT}/tts`);
-  console.log(`   Voices:  GET  http://${HOST}:${PORT}/voices`);
-  console.log(`\n   Piper exe: ${PIPER_EXE}`);
-  console.log(`   Voice dir: ${VOICE_DIR}`);
-  console.log(`   Default voice: ${DEFAULT_VOICE}`);
-  console.log(`\n   Press Ctrl+C to stop.\n`);
-});
+(async () => {
+  await cleanOutputDir();
+  app.listen(PORT, HOST, () => {
+    console.log(`\n🔊 Local Piper TTS Server v${version}`);
+    console.log(`   Running at http://${HOST}:${PORT}`);
+    console.log(`   Health:  GET  http://${HOST}:${PORT}/health`);
+    console.log(`   TTS:     POST http://${HOST}:${PORT}/tts`);
+    console.log(`   Voices:  GET  http://${HOST}:${PORT}/voices`);
+    console.log(`\n   Piper exe: ${PIPER_EXE}`);
+    console.log(`   Voice dir: ${VOICE_DIR}`);
+    console.log(`   Default voice: ${DEFAULT_VOICE}`);
+    console.log(`\n   Press Ctrl+C to stop.\n`);
+  });
+})();

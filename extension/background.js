@@ -91,24 +91,35 @@ function speakWithBrowser(text, settings) {
   });
 }
 
-// ─── Piper Health Check ───────────────────────────────────────────────────────
+// ─── Piper Health Check (5-second cache) ─────────────────────────────────────
+let _piperOnlineCache = { value: false, expiresAt: 0 };
+
 async function checkPiperOnline() {
+  if (Date.now() < _piperOnlineCache.expiresAt) return _piperOnlineCache.value;
   try {
     const ctrl  = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 2500);
     const res   = await fetch(`${PIPER_BASE_URL}/health`, { signal: ctrl.signal });
     clearTimeout(timer);
+    _piperOnlineCache = { value: res.ok, expiresAt: Date.now() + 5000 };
     return res.ok;
   } catch (_) {
+    _piperOnlineCache = { value: false, expiresAt: Date.now() + 2000 };
     return false;
   }
 }
+
+// ─── Playback State ───────────────────────────────────────────────────────────
+let _isPlayingPiper = false;
+let _isPausedPiper  = false;
 
 // ─── Piper TTS ───────────────────────────────────────────────────────────────
 async function speakWithPiper(text, settings) {
   const online = await checkPiperOnline();
   if (!online) throw new Error("Piper server is offline");
 
+  _isPlayingPiper = true;
+  _isPausedPiper  = false;
   await ensureOffscreenDocument();
   chrome.runtime.sendMessage({ type: "stop-audio" }).catch(() => {});
   chrome.runtime.sendMessage({
@@ -123,6 +134,9 @@ async function speakWithPiper(text, settings) {
 
 // ─── Stop All ────────────────────────────────────────────────────────────────
 async function stopAll() {
+  _isPlayingPiper = false;
+  _isPausedPiper  = false;
+  _piperOnlineCache.expiresAt = 0; // invalidate cache so next read checks fresh
   chrome.tts.stop();
   try {
     const existing = await chrome.runtime.getContexts({
@@ -157,8 +171,8 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
   let { profiles = [], activeId = "" } =
     await chrome.storage.local.get(["profiles", "activeId"]);
 
-  // If a specific profile was chosen from the submenu, switch to it and stop —
-  // don't fall through to speakText; the user only selected a profile, not read.
+  // If a specific profile was chosen from the submenu, switch to it and read
+  // with the newly selected profile.
   if (info.menuItemId.startsWith("profile-")) {
     activeId = info.menuItemId.replace("profile-", "");
     // Cancel any pending debounced rebuild before our own await so the
@@ -167,6 +181,9 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
     clearTimeout(_rebuildTimer);
     await chrome.storage.local.set({ activeId });
     await rebuildMenus();
+    // Also read the selected text with the newly chosen profile
+    const selectedProfile = profiles.find(p => p.id === activeId);
+    if (selectedProfile && text) await speakText(text, selectedProfile);
     return;
   }
 
@@ -176,7 +193,7 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
   await speakText(text, profile);
 });
 
-// ─── Messages from Popup ──────────────────────────────────────────────────────
+// ─── Messages from Popup / Content Script / Offscreen ────────────────────────
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   // stop-all: fire-and-forget — respond immediately so the popup can close
   // without leaving an open message channel that Chrome will kill mid-flight.
@@ -184,6 +201,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     stopAll();
     sendResponse({ ok: true });
     return; // synchronous — no return true, no dangling channel
+  }
+
+  // Offscreen notifies us when queue finishes naturally
+  if (message.type === "playback-ended") {
+    _isPlayingPiper = false;
+    _isPausedPiper  = false;
+    return;
+  }
+
+  // Popup polls to show now-playing indicator
+  if (message.type === "get-playback-state") {
+    sendResponse({ isPlaying: _isPlayingPiper, isPaused: _isPausedPiper });
+    return; // synchronous
   }
 
   if (message.type === "test-voice") {
@@ -207,5 +237,47 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
       });
     return true;
+  }
+
+  // Keyboard shortcut: Alt+Shift+R — read/stop toggle
+  if (message.type === "keyboard-read") {
+    if (_isPlayingPiper) {
+      stopAll();
+    } else {
+      (async () => {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) return;
+        const [result] = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func:   () => window.getSelection()?.toString().trim() || ""
+        });
+        const text = result?.result;
+        if (!text) return;
+        const { profiles = [], activeId = "" } =
+          await chrome.storage.local.get(["profiles", "activeId"]);
+        const profile = profiles.find(p => p.id === activeId) || profiles[0];
+        if (profile) await speakText(text, profile);
+      })().catch(err => console.error("[keyboard-read]", err));
+    }
+    return;
+  }
+
+  // Keyboard shortcut: Alt+Shift+D — pause/resume toggle
+  if (message.type === "keyboard-pause") {
+    (async () => {
+      const existing = await chrome.runtime.getContexts({
+        contextTypes: ["OFFSCREEN_DOCUMENT"],
+        documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)]
+      }).catch(() => []);
+
+      if (_isPausedPiper) {
+        _isPausedPiper = false;
+        if (existing.length > 0) chrome.runtime.sendMessage({ type: "resume-audio" }).catch(() => {});
+      } else if (_isPlayingPiper) {
+        _isPausedPiper = true;
+        if (existing.length > 0) chrome.runtime.sendMessage({ type: "pause-audio" }).catch(() => {});
+      }
+    })().catch(err => console.error("[keyboard-pause]", err));
+    return;
   }
 });

@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Local TTS Reader",
-  "version": "0.9.7",
+  "version": "1.0.0",
   "description": "Highlight text, right-click, and hear it read aloud using local Piper TTS — no cloud, no API keys.",
   "permissions": [
     "contextMenus",
     "tts",
     "storage",
-    "offscreen"
+    "offscreen",
+    "tabs",
+    "scripting"
   ],
   "host_permissions": [
     "http://127.0.0.1:5050/*"
@@ -15,6 +17,13 @@
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_title": "Local TTS Reader"

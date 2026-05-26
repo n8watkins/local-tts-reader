@@ -754,6 +754,69 @@ body {
   justify-content: flex-end;
 }
 
+/* ─── Keyboard Shortcut Rebind UI ────────────────────────────────────────────── */
+.settings-shortcut-disclaimer {
+  margin-bottom: 14px;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+.shortcut-row + .shortcut-row { border-top: 1px solid #313244; }
+
+.shortcut-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #cdd6f4;
+}
+
+.shortcut-bind-btn {
+  font-family: "SF Mono", "Fira Code", Consolas, monospace;
+  font-size: 12px;
+  background: #313244;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  color: #cba6f7;
+  padding: 5px 12px;
+  cursor: pointer;
+  outline: none;
+  min-width: 120px;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+.shortcut-bind-btn:hover { background: #45475a; }
+.shortcut-bind-btn.listening {
+  border-color: #f9e2af;
+  color: #f9e2af;
+  background: #3a2e1e;
+  animation: blink-border 0.8s ease-in-out infinite;
+}
+@keyframes blink-border {
+  0%, 100% { border-color: #f9e2af; }
+  50%       { border-color: #6a5a30; }
+}
+
+/* ─── Voice Quality Badge ────────────────────────────────────────────────────── */
+.quality-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.quality-x_low { background: #313244; color: #6c7086; }
+.quality-low   { background: #2a2040; color: #cba6f7; }
+.quality-med   { background: #1e3a2a; color: #a6e3a1; }
+.quality-high  { background: #3a1e2e; color: #f38ba8; }
+
 /* ─── Utility ────────────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
 .no-items {
