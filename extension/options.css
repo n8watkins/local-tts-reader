@@ -362,6 +362,38 @@ body {
 }
 
 /* ─── Voices Tab ─────────────────────────────────────────────────────────────── */
+.voices-folder-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #1e1e2e;
+  border: 1px solid #313244;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.voices-folder-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6c7086;
+  white-space: nowrap;
+}
+
+.voices-folder-path {
+  font-family: "SF Mono", "Fira Code", Consolas, monospace;
+  font-size: 11px;
+  color: #a6adc8;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .voices-offline-banner {
   background: #3a2e1e;
   border: 1px solid #6a4e2e;

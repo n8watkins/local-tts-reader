@@ -15,10 +15,19 @@ let deletedVoices = [];
 let favsOnly      = false;
 let fallback      = true;
 let allVoices     = [];    // filenames fetched from server
+let voiceSizes    = {};    // { filename: bytes }
+let voiceDir      = "";    // absolute path to voices folder on disk
 let serverOnline  = false;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(v) { return parseFloat(v).toFixed(1); }
+
+function formatBytes(bytes) {
+  if (!bytes) return "";
+  if (bytes >= 1_000_000_000) return (bytes / 1_000_000_000).toFixed(1) + " GB";
+  if (bytes >= 1_000_000)     return Math.round(bytes / 1_000_000) + " MB";
+  return Math.round(bytes / 1_000) + " KB";
+}
 
 function uuid() {
   return crypto.randomUUID
@@ -130,12 +139,22 @@ async function fetchVoices() {
   banner.classList.add("hidden");
 
   try {
-    const res = await fetch(`${PIPER_BASE_URL}/voices`);
+    const res  = await fetch(`${PIPER_BASE_URL}/voices`);
     if (!res.ok) throw new Error(`Server responded ${res.status}`);
-    const { voices } = await res.json();
-    allVoices = voices || [];
+    const data = await res.json();
+    allVoices  = data.voices   || [];
+    voiceSizes = data.sizes    || {};
+    voiceDir   = data.voiceDir || "";
+
+    // Show folder path bar
+    const folderBar  = document.getElementById("voices-folder-bar");
+    const folderPath = document.getElementById("voices-folder-path");
+    if (folderBar && voiceDir) {
+      folderPath.textContent = voiceDir;
+      folderBar.classList.remove("hidden");
+    }
+
     renderVoices();
-    // Also refresh voice selects in any open profile edit forms
     refreshVoiceSelects();
   } catch (err) {
     document.getElementById("voice-grid").innerHTML =
@@ -184,7 +203,8 @@ function renderVoices() {
 
     const fileEl = document.createElement("span");
     fileEl.className = "voice-card-file";
-    fileEl.textContent = v;
+    const sizeStr = formatBytes(voiceSizes[v]);
+    fileEl.textContent = sizeStr ? `${v}  ·  ${sizeStr}` : v;
 
     info.appendChild(nameEl);
     info.appendChild(fileEl);
@@ -327,6 +347,11 @@ function renderDeletedLog() {
     listEl.appendChild(row);
   }
 }
+
+// ─── Voices — Open folder ─────────────────────────────────────────────────────
+document.getElementById("open-folder-btn").addEventListener("click", () => {
+  fetch(`${PIPER_BASE_URL}/voices/open-folder`, { method: "POST" }).catch(() => {});
+});
 
 // ─── Voices — Favs-only toggle ────────────────────────────────────────────────
 document.getElementById("favs-only-check").addEventListener("change", (e) => {

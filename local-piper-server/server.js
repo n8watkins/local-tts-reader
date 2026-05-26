@@ -17,7 +17,7 @@ const fs      = require("fs/promises");
 const { createReadStream } = require("fs");
 const path    = require("path");
 const crypto  = require("crypto");
-const { spawn } = require("child_process");
+const { spawn, exec } = require("child_process");
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const PORT       = 5050;
@@ -197,15 +197,32 @@ app.post("/tts", async (req, res) => {
   }
 });
 
-// ─── GET /voices  (list available voice models) ───────────────────────────────
+// ─── GET /voices  (list available voice models + sizes) ──────────────────────
 app.get("/voices", async (_req, res) => {
   try {
     const files = await fs.readdir(VOICE_DIR);
     const voices = files.filter(f => f.endsWith(".onnx"));
-    res.json({ voices });
+
+    // Stat each .onnx file for real on-disk size
+    const sizes = {};
+    await Promise.all(voices.map(async (f) => {
+      try {
+        const stat = await fs.stat(path.join(VOICE_DIR, f));
+        sizes[f] = stat.size;
+      } catch { sizes[f] = 0; }
+    }));
+
+    res.json({ voices, sizes, voiceDir: VOICE_DIR });
   } catch (_) {
-    res.json({ voices: [] });
+    res.json({ voices: [], sizes: {}, voiceDir: VOICE_DIR });
   }
+});
+
+// ─── POST /voices/open-folder  (reveal voices directory in Explorer) ──────────
+app.post("/voices/open-folder", (_req, res) => {
+  // Works on Windows; no-op on other platforms
+  exec(`explorer.exe "${VOICE_DIR}"`, () => {});
+  res.json({ ok: true });
 });
 
 // ─── DELETE /voices/:name  (remove an installed voice) ───────────────────────
