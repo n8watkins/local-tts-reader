@@ -19,12 +19,26 @@
         <span class="server-badge" id="server-badge">Checking…</span>
       </header>
 
+      <!-- App Identity — always visible above tabs -->
+      <div class="page-identity">
+        <div class="credits-logo">🔊</div>
+        <div class="page-identity-text">
+          <h3 class="credits-title">Local TTS Reader</h3>
+          <p class="credits-tagline">
+            Reads selected text aloud using a fully local
+            <a class="link" href="https://github.com/rhasspy/piper" target="_blank">Piper TTS</a>
+            server — no cloud, no API keys.
+          </p>
+        </div>
+      </div>
+
       <!-- Tabs -->
       <nav class="tabs" role="tablist">
         <button class="tab active" data-tab="profiles" role="tab">Profiles</button>
         <button class="tab"        data-tab="voices"   role="tab">Voices</button>
         <button class="tab"        data-tab="settings" role="tab">Settings</button>
-        <button class="tab"        data-tab="credits"  role="tab">About</button>
+        <button class="tab"        data-tab="about"    role="tab">About</button>
+        <button class="tab"        data-tab="credits"  role="tab">Credits</button>
       </nav>
 
       <!-- ── Profiles Tab ─────────────────────────────────────────────────── -->
@@ -131,19 +145,8 @@
         </div>
       </section>
 
-      <!-- ── About / Credits Tab ───────────────────────────────────────────── -->
-      <section id="tab-credits" class="tab-panel hidden" role="tabpanel">
-
-        <!-- Identity block — always at top -->
-        <div class="credits-identity">
-          <div class="credits-logo">🔊</div>
-          <h3 class="credits-title">Local TTS Reader</h3>
-          <p class="credits-tagline">
-            A Chrome extension that reads any selected text aloud using a fully local
-            <a class="link" href="https://github.com/rhasspy/piper" target="_blank">Piper TTS</a>
-            server on your machine — no cloud, no API keys, nothing leaves your computer.
-          </p>
-        </div>
+      <!-- ── About Tab ─────────────────────────────────────────────────────────── -->
+      <section id="tab-about" class="tab-panel hidden" role="tabpanel">
 
         <!-- How It Works -->
         <div class="credits-section">
@@ -196,9 +199,13 @@
           </a>
         </div>
 
-        <!-- Credits -->
+      </section>
+
+      <!-- ── Credits Tab ────────────────────────────────────────────────────────── -->
+      <section id="tab-credits" class="tab-panel hidden" role="tabpanel">
+
         <div class="credits-section">
-          <h4 class="credits-section-title">Credits</h4>
+          <h4 class="credits-section-title">Open Source</h4>
           <div class="credits-deps">
             <a class="dep-card" href="https://github.com/rhasspy/piper" target="_blank">
               <span class="dep-name">Piper TTS</span>
@@ -210,8 +217,23 @@
               <span class="dep-name">Piper Voices</span>
               <span class="dep-desc">Free English voice models on HuggingFace</span>
             </a>
+            <a class="dep-card" href="https://lucide.dev" target="_blank">
+              <span class="dep-name">Lucide Icons</span>
+              <span class="dep-desc">Beautiful &amp; consistent open-source icons</span>
+            </a>
           </div>
-          <p class="credits-license">MIT License — free to use, modify, and share.</p>
+        </div>
+
+        <div class="credits-section">
+          <h4 class="credits-section-title">License</h4>
+          <p class="credits-body">
+            Local TTS Reader is released under the MIT License — free to use, modify, and share.
+          </p>
+          <a class="link"
+             href="https://github.com/n8watkins/local-tts-reader"
+             target="_blank">
+            View source on GitHub ↗
+          </a>
         </div>
 
       </section>

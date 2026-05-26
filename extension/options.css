@@ -539,6 +539,36 @@ body {
   color: #a6e3a1;
 }
 
+/* ─── Page Identity Block (above tabs, always visible) ──────────────────────── */
+.page-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 0 16px;
+  border-bottom: 1px solid #313244;
+  margin-bottom: 0;
+}
+
+.page-identity .credits-logo {
+  font-size: 32px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+.page-identity-text { flex: 1; min-width: 0; }
+
+.page-identity .credits-title {
+  font-size: 16px;
+  margin-bottom: 3px;
+}
+
+.page-identity .credits-tagline {
+  font-size: 12px;
+  margin: 0;
+  line-height: 1.5;
+}
+
 /* ─── Credits Tab ────────────────────────────────────────────────────────────── */
 .credits-identity {
   text-align: center;
