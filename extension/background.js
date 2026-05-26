@@ -178,9 +178,12 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
 
 // ─── Messages from Popup ──────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  // stop-all: fire-and-forget — respond immediately so the popup can close
+  // without leaving an open message channel that Chrome will kill mid-flight.
   if (message.type === "stop-all") {
-    stopAll().then(() => sendResponse({ ok: true }));
-    return true;
+    stopAll();
+    sendResponse({ ok: true });
+    return; // synchronous — no return true, no dangling channel
   }
 
   if (message.type === "test-voice") {
@@ -189,8 +192,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     // Apply the browser-TTS fallback manually here so the popup still gets
     // a meaningful { ok: false } when both Piper and fallback are unavailable.
     speakWithPiper(text, settings)
-      .then(() => sendResponse({ ok: true }))
+      .then(() => {
+        if (chrome.runtime.lastError) return; // channel already closed — swallow
+        sendResponse({ ok: true });
+      })
       .catch(async (piperErr) => {
+        if (chrome.runtime.lastError) return;
         const { fallback = true } = await chrome.storage.local.get("fallback");
         if (fallback) {
           speakWithBrowser(text, settings);
