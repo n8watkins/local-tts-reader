@@ -1,0 +1,30 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Piper binaries (download separately — see README)
+local-piper-server/piper/piper.exe
+local-piper-server/piper/piper
+local-piper-server/piper/voices/*.onnx
+local-piper-server/piper/voices/*.onnx.json
+
+# Generated audio output
+local-piper-server/output/*.wav
+local-piper-server/output/*.mp3
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
