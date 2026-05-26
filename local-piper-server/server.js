@@ -36,7 +36,9 @@ const DEFAULT_VOICE = "en_US-ryan-high.onnx";
 // ─── App Setup ────────────────────────────────────────────────────────────────
 const app = express();
 
-app.use(cors({ origin: "*" }));
+const corsOptions = { origin: "*", methods: ["GET", "POST", "DELETE", "OPTIONS"] };
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions)); // explicit preflight for DELETE etc.
 app.use(express.json({ limit: "1mb" }));
 
 // ─── Health Check ─────────────────────────────────────────────────────────────

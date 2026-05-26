@@ -1,62 +1,48 @@
 // ─── DOM References ───────────────────────────────────────────────────────────
-const engineSelect     = document.getElementById("engine-select");
-const piperStatusSec   = document.getElementById("piper-status-section");
-const piperStatusBadge = document.getElementById("piper-status-badge");
-const piperHint        = document.getElementById("piper-hint");
-const fallbackSec      = document.getElementById("fallback-section");
-const pitchSection     = document.getElementById("pitch-section");
-const rateSlider       = document.getElementById("rate-slider");
-const rateValue        = document.getElementById("rate-value");
-const pitchSlider      = document.getElementById("pitch-slider");
-const pitchValue       = document.getElementById("pitch-value");
-const volumeSlider     = document.getElementById("volume-slider");
-const volumeValue      = document.getElementById("volume-value");
+const profileSelect    = document.getElementById("profile-select");
+const addProfileBtn    = document.getElementById("add-profile-btn");
+const renameProfileBtn = document.getElementById("rename-profile-btn");
+const delProfileBtn    = document.getElementById("del-profile-btn");
+
 const voiceSelect      = document.getElementById("voice-select");
 const favBtn           = document.getElementById("fav-btn");
-const delBtn           = document.getElementById("del-btn");
+const delVoiceBtn      = document.getElementById("del-voice-btn");
+const favsOnlyCheck    = document.getElementById("favs-only-check");
+
+const rateSlider       = document.getElementById("rate-slider");
+const rateValue        = document.getElementById("rate-value");
+const volumeSlider     = document.getElementById("volume-slider");
+const volumeValue      = document.getElementById("volume-value");
+
 const fallbackCheck    = document.getElementById("fallback-checkbox");
 const testBtn          = document.getElementById("test-btn");
 const stopBtn          = document.getElementById("stop-btn");
-const testError        = document.getElementById("test-error"); // V4: error display
+const testError        = document.getElementById("test-error");
+
+const piperBadge       = document.getElementById("piper-status-badge");
+const deletedDetails   = document.getElementById("deleted-details");
+const deletedCount     = document.getElementById("deleted-count");
+const deletedList      = document.getElementById("deleted-list");
 
 const PIPER_URL = "http://127.0.0.1:5050";
-const DEFAULTS = {
-  engine: "browser",
-  rate: 1.0,
-  pitch: 1.0,
-  volume: 1.0,
-  fallbackToBrowser: true,
-  voice: "",
-  favorites: []
-};
 
-let favorites = [];
+// ─── State ────────────────────────────────────────────────────────────────────
+let profiles       = [];
+let activeId       = "";
+let favorites      = [];
+let deletedVoices  = [];
+let favsOnly       = false;
+let fallback       = true;
+let allVoices      = []; // fetched from server
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function fmt(val) {
-  return parseFloat(val).toFixed(1);
+function fmt(val) { return parseFloat(val).toFixed(1); }
+
+function uuid() {
+  return crypto.randomUUID ? crypto.randomUUID()
+    : Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
-function applyEngineUI(engine) {
-  const isPiper = engine === "piper";
-
-  // Show/hide Piper-specific sections
-  piperStatusSec.classList.toggle("hidden", !isPiper);
-  fallbackSec.classList.toggle("hidden", !isPiper);
-
-  // Pitch only applies to browser TTS
-  pitchSection.classList.toggle("hidden", isPiper);
-
-  if (isPiper) {
-    // C7 fix: scheduleStatusCheck() debounces rapid engine-toggle clicks so
-    // multiple concurrent fetch sequences don't race on the badge.
-    scheduleStatusCheck();
-    loadVoiceList(voiceSelect.value);
-  }
-}
-
-// ─── Voice Name Formatter ─────────────────────────────────────────────────────
-// "en_US-ryan-high.onnx" → "Ryan · High"
 function formatVoiceName(filename) {
   const base  = filename.replace(/\.onnx$/, "");
   const parts = base.split("-");
@@ -68,27 +54,112 @@ function formatVoiceName(filename) {
   return base;
 }
 
-// ─── Favourite Button State ───────────────────────────────────────────────────
+function activeProfile() {
+  return profiles.find(p => p.id === activeId) || profiles[0] || null;
+}
+
+// ─── Persist ──────────────────────────────────────────────────────────────────
+function save() {
+  chrome.storage.local.set({ profiles, activeId, favorites, deletedVoices, favsOnly, fallback });
+}
+
+// ─── Profiles ─────────────────────────────────────────────────────────────────
+function renderProfiles() {
+  profileSelect.innerHTML = "";
+  for (const p of profiles) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name;
+    if (p.id === activeId) opt.selected = true;
+    profileSelect.appendChild(opt);
+  }
+}
+
+function loadProfileIntoUI(profile) {
+  if (!profile) return;
+  rateSlider.value   = profile.rate;
+  volumeSlider.value = profile.volume;
+  rateValue.textContent   = fmt(profile.rate);
+  volumeValue.textContent = fmt(profile.volume);
+  // Set voice in dropdown (may not exist if voice list not yet fetched)
+  if (profile.voice) voiceSelect.value = profile.voice;
+  updateFavBtn();
+}
+
+function saveActiveProfileSettings() {
+  const p = activeProfile();
+  if (!p) return;
+  p.rate   = parseFloat(rateSlider.value);
+  p.volume = parseFloat(volumeSlider.value);
+  p.voice  = voiceSelect.value;
+  save();
+}
+
+// ─── Profile CRUD ─────────────────────────────────────────────────────────────
+addProfileBtn.addEventListener("click", () => {
+  const name = prompt("Profile name:");
+  if (!name?.trim()) return;
+  const base = activeProfile() || { voice: "", rate: 1.0, volume: 1.0 };
+  const newP = { id: uuid(), name: name.trim(), voice: base.voice, rate: base.rate, volume: base.volume };
+  profiles.push(newP);
+  activeId = newP.id;
+  renderProfiles();
+  loadProfileIntoUI(newP);
+  save();
+});
+
+renameProfileBtn.addEventListener("click", () => {
+  const p = activeProfile();
+  if (!p) return;
+  const name = prompt("New name:", p.name);
+  if (!name?.trim()) return;
+  p.name = name.trim();
+  renderProfiles();
+  save();
+});
+
+delProfileBtn.addEventListener("click", () => {
+  if (profiles.length <= 1) { alert("Can't delete the last profile."); return; }
+  const p = activeProfile();
+  if (!p) return;
+  if (!confirm(`Delete profile "${p.name}"?`)) return;
+  profiles = profiles.filter(x => x.id !== p.id);
+  activeId = profiles[0].id;
+  renderProfiles();
+  loadProfileIntoUI(activeProfile());
+  save();
+});
+
+profileSelect.addEventListener("change", () => {
+  activeId = profileSelect.value;
+  loadProfileIntoUI(activeProfile());
+  save();
+});
+
+// ─── Voice List ───────────────────────────────────────────────────────────────
 function updateFavBtn() {
-  const isFav = favorites.includes(voiceSelect.value);
+  const v = voiceSelect.value;
+  const isFav = favorites.includes(v);
   favBtn.textContent = isFav ? "★" : "☆";
   favBtn.classList.toggle("active", isFav);
   favBtn.title = isFav ? "Remove from favourites" : "Add to favourites";
 }
 
-// ─── Voice List Loader ────────────────────────────────────────────────────────
-async function loadVoiceList(selectedVoice) {
-  try {
-    const res = await fetch(`${PIPER_URL}/voices`);
-    const { voices } = await res.json();
+function renderVoiceList(selectedVoice) {
+  const pool = favsOnly ? allVoices.filter(v => favorites.includes(v)) : allVoices;
+  const sorted = [
+    ...pool.filter(v =>  favorites.includes(v)).sort(),
+    ...pool.filter(v => !favorites.includes(v)).sort()
+  ];
 
-    // Favourites first, then alphabetically
-    const sorted = [
-      ...voices.filter(v =>  favorites.includes(v)).sort(),
-      ...voices.filter(v => !favorites.includes(v)).sort()
-    ];
+  voiceSelect.innerHTML = "";
 
-    voiceSelect.innerHTML = "";
+  if (sorted.length === 0) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = favsOnly ? "No favourites yet" : "No voices installed";
+    voiceSelect.appendChild(opt);
+  } else {
     for (const v of sorted) {
       const opt = document.createElement("option");
       opt.value = v;
@@ -96,145 +167,31 @@ async function loadVoiceList(selectedVoice) {
       if (v === selectedVoice) opt.selected = true;
       voiceSelect.appendChild(opt);
     }
-
     if (!voiceSelect.value && sorted.length > 0) {
       voiceSelect.value = sorted[0];
-      saveSettings();
+      saveActiveProfileSettings();
     }
+  }
 
-    updateFavBtn();
+  updateFavBtn();
+}
+
+async function fetchVoiceList() {
+  const current = activeProfile()?.voice || "";
+  try {
+    const res = await fetch(`${PIPER_URL}/voices`);
+    const { voices } = await res.json();
+    allVoices = voices;
+    renderVoiceList(current);
   } catch (_) {
     voiceSelect.innerHTML = '<option value="">Server offline</option>';
   }
 }
 
-// ─── Piper Status Check ───────────────────────────────────────────────────────
-// C7 fix: statusCheckTimeout is now actually wired up for debouncing.
-// Previously declared but never assigned, allowing rapid engine toggles to
-// fire concurrent fetch sequences that would race on badge text/class updates.
-let statusCheckTimeout = null;
-
-function scheduleStatusCheck(delayMs = 300) {
-  clearTimeout(statusCheckTimeout);
-  statusCheckTimeout = setTimeout(doCheckPiperStatus, delayMs);
-}
-
-async function doCheckPiperStatus() {
-  piperStatusBadge.textContent = "Checking…";
-  piperStatusBadge.className = "status-badge";
-
-  // C9 fix: hoist timer1 to outer scope so we can clearTimeout in the catch
-  // block. Previously the timer was scoped inside try{} and never cleared when
-  // the fetch threw for a non-abort reason, leaking a live timer per check.
-  let timer1 = null;
-
-  try {
-    const controller = new AbortController();
-    timer1 = setTimeout(() => controller.abort(), 2500);
-
-    const res = await fetch(`${PIPER_URL}/health`, {
-      signal: controller.signal
-    });
-
-    clearTimeout(timer1);
-
-    if (res.ok) {
-      setOnline();
-    } else {
-      setOffline();
-    }
-  } catch (_) {
-    clearTimeout(timer1); // C9 fix: always clear, even on non-abort throws
-
-    // /health may not exist on older server versions — try a HEAD on the root
-    // V1 fix: hoist timer2 so clearTimeout runs in catch, not just on success.
-    // Same pattern as the C9 fix for timer1 above.
-    let timer2 = null;
-    try {
-      const controller2 = new AbortController();
-      timer2 = setTimeout(() => controller2.abort(), 2500);
-
-      await fetch(`${PIPER_URL}/`, {
-        method: "HEAD",
-        signal: controller2.signal
-      });
-
-      clearTimeout(timer2);
-      setOnline();
-    } catch (_2) {
-      clearTimeout(timer2); // V1 fix: always clear, even on non-abort throws
-      setOffline();
-    }
-  }
-}
-
-function setOnline() {
-  piperStatusBadge.textContent = "Online ✓";
-  piperStatusBadge.className = "status-badge online";
-  piperHint.classList.add("hidden");
-}
-
-function setOffline() {
-  piperStatusBadge.textContent = "Offline ✗";
-  piperStatusBadge.className = "status-badge offline";
-  piperHint.classList.remove("hidden");
-}
-
-// ─── Save Settings ────────────────────────────────────────────────────────────
-function saveSettings() {
-  chrome.storage.local.set({
-    engine: engineSelect.value,
-    rate: parseFloat(rateSlider.value),
-    pitch: parseFloat(pitchSlider.value),
-    volume: parseFloat(volumeSlider.value),
-    fallbackToBrowser: fallbackCheck.checked,
-    voice: voiceSelect.value,
-    favorites
-  });
-}
-
-// ─── Load Settings ────────────────────────────────────────────────────────────
-async function loadSettings() {
-  const settings = await chrome.storage.local.get(DEFAULTS);
-
-  engineSelect.value      = settings.engine;
-  rateSlider.value        = settings.rate;
-  pitchSlider.value       = settings.pitch;
-  volumeSlider.value      = settings.volume;
-  fallbackCheck.checked   = settings.fallbackToBrowser;
-
-  rateValue.textContent   = fmt(settings.rate);
-  pitchValue.textContent  = fmt(settings.pitch);
-  volumeValue.textContent = fmt(settings.volume);
-
-  favorites = settings.favorites || [];
-  voiceSelect.value = settings.voice || "";
-
-  applyEngineUI(settings.engine);
-}
-
-// ─── Event Listeners ──────────────────────────────────────────────────────────
-engineSelect.addEventListener("change", () => {
-  applyEngineUI(engineSelect.value);
-  saveSettings();
+voiceSelect.addEventListener("change", () => {
+  saveActiveProfileSettings();
+  updateFavBtn();
 });
-
-rateSlider.addEventListener("input", () => {
-  rateValue.textContent = fmt(rateSlider.value);
-  saveSettings();
-});
-
-pitchSlider.addEventListener("input", () => {
-  pitchValue.textContent = fmt(pitchSlider.value);
-  saveSettings();
-});
-
-volumeSlider.addEventListener("input", () => {
-  volumeValue.textContent = fmt(volumeSlider.value);
-  saveSettings();
-});
-
-voiceSelect.addEventListener("change", () => { saveSettings(); updateFavBtn(); });
 
 favBtn.addEventListener("click", () => {
   const v = voiceSelect.value;
@@ -242,31 +199,128 @@ favBtn.addEventListener("click", () => {
   favorites = favorites.includes(v)
     ? favorites.filter(f => f !== v)
     : [...favorites, v];
-  chrome.storage.local.set({ favorites });
-  loadVoiceList(v);
+  renderVoiceList(v);
+  save();
 });
 
-delBtn.addEventListener("click", async () => {
+delVoiceBtn.addEventListener("click", async () => {
   const v = voiceSelect.value;
   if (!v) return;
-  if (!confirm(`Delete "${formatVoiceName(v)}"?\nThis removes the file from disk.`)) return;
+  if (!confirm(`Delete "${formatVoiceName(v)}"?\nThis removes the voice file from disk and cannot be undone.`)) return;
+
   try {
-    await fetch(`${PIPER_URL}/voices/${encodeURIComponent(v)}`, { method: "DELETE" });
+    const res = await fetch(`${PIPER_URL}/voices/${encodeURIComponent(v)}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(`Server responded ${res.status}`);
+
+    // Log to deleted list
+    deletedVoices = [
+      { filename: v, displayName: formatVoiceName(v), deletedAt: new Date().toLocaleDateString() },
+      ...deletedVoices.filter(d => d.filename !== v)
+    ];
+
+    // Remove from favorites if present
     favorites = favorites.filter(f => f !== v);
-    chrome.storage.local.set({ favorites, voice: "" });
-    loadVoiceList("");
+
+    // Clear from any profiles using it
+    for (const p of profiles) {
+      if (p.voice === v) p.voice = "";
+    }
+
+    save();
+    allVoices = allVoices.filter(x => x !== v);
+    renderVoiceList("");
+    renderDeletedLog();
   } catch (err) {
-    console.error("Delete voice failed:", err);
+    alert(`Delete failed: ${err.message}`);
   }
 });
 
-fallbackCheck.addEventListener("change", saveSettings);
+favsOnlyCheck.addEventListener("change", () => {
+  favsOnly = favsOnlyCheck.checked;
+  renderVoiceList(voiceSelect.value);
+  save();
+});
 
-// ─── Test Error Display ───────────────────────────────────────────────────────
+// ─── Deleted Voice Log ────────────────────────────────────────────────────────
+function renderDeletedLog() {
+  if (deletedVoices.length === 0) {
+    deletedDetails.style.display = "none";
+    return;
+  }
+  deletedDetails.style.display = "";
+  deletedCount.textContent = `(${deletedVoices.length})`;
+  deletedList.innerHTML = "";
+  for (const d of deletedVoices) {
+    const row = document.createElement("div");
+    row.className = "deleted-item";
+    row.innerHTML = `<span class="deleted-name">${d.displayName}</span><span>${d.deletedAt}</span>`;
+    deletedList.appendChild(row);
+  }
+}
+
+// ─── Piper Status ─────────────────────────────────────────────────────────────
+let statusTimer = null;
+
+function scheduleStatusCheck(delay = 300) {
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(checkPiperStatus, delay);
+}
+
+async function checkPiperStatus() {
+  piperBadge.textContent = "Checking…";
+  piperBadge.className   = "status-badge";
+
+  let t1 = null;
+  try {
+    const ctrl = new AbortController();
+    t1 = setTimeout(() => ctrl.abort(), 2500);
+    const res = await fetch(`${PIPER_URL}/health`, { signal: ctrl.signal });
+    clearTimeout(t1);
+    if (res.ok) { setOnline(); return; }
+  } catch (_) { clearTimeout(t1); }
+
+  let t2 = null;
+  try {
+    const ctrl = new AbortController();
+    t2 = setTimeout(() => ctrl.abort(), 2500);
+    await fetch(`${PIPER_URL}/`, { method: "HEAD", signal: ctrl.signal });
+    clearTimeout(t2);
+    setOnline();
+  } catch (_) { clearTimeout(t2); setOffline(); }
+}
+
+function setOnline()  {
+  piperBadge.textContent = "Online ✓";
+  piperBadge.className   = "status-badge online";
+  fetchVoiceList();
+}
+
+function setOffline() {
+  piperBadge.textContent = "Offline ✗";
+  piperBadge.className   = "status-badge offline";
+  voiceSelect.innerHTML  = '<option value="">Server offline</option>';
+}
+
+// ─── Sliders ──────────────────────────────────────────────────────────────────
+rateSlider.addEventListener("input", () => {
+  rateValue.textContent = fmt(rateSlider.value);
+  saveActiveProfileSettings();
+});
+
+volumeSlider.addEventListener("input", () => {
+  volumeValue.textContent = fmt(volumeSlider.value);
+  saveActiveProfileSettings();
+});
+
+fallbackCheck.addEventListener("change", () => {
+  fallback = fallbackCheck.checked;
+  save();
+});
+
+// ─── Test Error ───────────────────────────────────────────────────────────────
 let testErrorTimer = null;
 
 function showTestError(msg) {
-  if (!testError) return;
   testError.textContent = msg;
   testError.classList.remove("hidden");
   clearTimeout(testErrorTimer);
@@ -275,46 +329,26 @@ function showTestError(msg) {
 
 // ─── Test Voice ───────────────────────────────────────────────────────────────
 testBtn.addEventListener("click", () => {
-  const engine = engineSelect.value;
-  const settings = {
-    rate:   parseFloat(rateSlider.value),
-    pitch:  parseFloat(pitchSlider.value),
-    volume: parseFloat(volumeSlider.value),
-    voice:  voiceSelect.value
-  };
-
+  const p = activeProfile();
   testBtn.textContent = "Playing…";
-  testBtn.disabled = true;
+  testBtn.disabled    = true;
 
-  // V4 fix: callback now accepts and checks the response object.
-  // Previously declared () => {} with no params — {ok:false, error:…} was
-  // silently discarded and the user saw no indication of failure.
-  //
-  // W2 fix: read chrome.runtime.lastError before touching response. If the
-  // service worker is killed between send and callback, Chrome sets lastError
-  // and delivers response=undefined. Without reading lastError Chrome logs
-  // "Unchecked runtime.lastError" and the user sees no error — button just
-  // silently re-enables.
   chrome.runtime.sendMessage(
     {
       type: "test-voice",
-      engine,
       text: "This is a local text to speech test.",
-      settings
+      settings: {
+        voice:  p?.voice  || "",
+        rate:   parseFloat(rateSlider.value),
+        volume: parseFloat(volumeSlider.value)
+      }
     },
     (response) => {
       testBtn.textContent = "Test Voice";
-      testBtn.disabled = false;
-
+      testBtn.disabled    = false;
       const runtimeErr = chrome.runtime.lastError;
-      if (runtimeErr) {
-        showTestError("Extension error: " + runtimeErr.message);
-        return;
-      }
-
-      if (response && !response.ok) {
-        showTestError(response.error || "Test failed — check the console for details.");
-      }
+      if (runtimeErr) { showTestError("Extension error: " + runtimeErr.message); return; }
+      if (response && !response.ok) showTestError(response.error || "Test failed.");
     }
   );
 });
@@ -328,4 +362,36 @@ stopBtn.addEventListener("click", () => {
 document.getElementById("app-version").textContent =
   "v" + chrome.runtime.getManifest().version;
 
-loadSettings();
+async function init() {
+  const stored = await chrome.storage.local.get({
+    profiles:      [],
+    activeId:      "",
+    favorites:     [],
+    deletedVoices: [],
+    favsOnly:      false,
+    fallback:      true
+  });
+
+  // Bootstrap default profile if none exist
+  if (stored.profiles.length === 0) {
+    stored.profiles = [{ id: "default", name: "Default", voice: "", rate: 1.0, volume: 1.0 }];
+    stored.activeId = "default";
+  }
+
+  profiles      = stored.profiles;
+  activeId      = stored.activeId || profiles[0].id;
+  favorites     = stored.favorites;
+  deletedVoices = stored.deletedVoices;
+  favsOnly      = stored.favsOnly;
+  fallback      = stored.fallback;
+
+  favsOnlyCheck.checked  = favsOnly;
+  fallbackCheck.checked  = fallback;
+
+  renderProfiles();
+  loadProfileIntoUI(activeProfile());
+  renderDeletedLog();
+  scheduleStatusCheck();
+}
+
+init();

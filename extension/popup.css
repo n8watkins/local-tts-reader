@@ -10,7 +10,7 @@ body {
   font-size: 13px;
   background: #1e1e2e;
   color: #cdd6f4;
-  width: 280px;
+  width: 300px;
   min-height: 100px;
 }
 
@@ -26,17 +26,15 @@ body {
 .app-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding-bottom: 8px;
   border-bottom: 1px solid #313244;
 }
 
-.app-icon {
-  font-size: 18px;
-}
+.app-icon  { font-size: 16px; }
 
 .app-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #cba6f7;
   letter-spacing: 0.02em;
@@ -45,8 +43,7 @@ body {
 
 .app-version {
   font-size: 10px;
-  color: #585b70;
-  letter-spacing: 0.03em;
+  color: #45475a;
 }
 
 /* ─── Sections ──────────────────────────────────────────────────────────────── */
@@ -64,6 +61,18 @@ body {
   color: #a6adc8;
 }
 
+/* ─── Row helpers ───────────────────────────────────────────────────────────── */
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.icon-group {
+  display: flex;
+  gap: 4px;
+}
+
 /* ─── Select ────────────────────────────────────────────────────────────────── */
 .select {
   appearance: none;
@@ -79,6 +88,7 @@ body {
   background-position: right 10px center;
   outline: none;
   transition: border-color 0.15s;
+  width: 100%;
 }
 
 .select:hover,
@@ -86,46 +96,63 @@ body {
   border-color: #cba6f7;
 }
 
-/* ─── Status Row ────────────────────────────────────────────────────────────── */
-.status-row {
+/* ─── Status Badge ──────────────────────────────────────────────────────────── */
+.status-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #313244;
+  color: #a6adc8;
+  transition: background 0.2s, color 0.2s;
+  white-space: nowrap;
+}
+
+.status-badge.online  { background: #1e3a2a; color: #a6e3a1; }
+.status-badge.offline { background: #3a1e1e; color: #f38ba8; }
+
+/* ─── Icon Buttons ──────────────────────────────────────────────────────────── */
+.btn-icon {
+  flex-shrink: 0;
+  background: #313244;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  padding: 4px 7px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #cdd6f4;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  outline: none;
+}
+
+.btn-icon:hover         { background: #45475a; }
+.btn-icon.active        { color: #f9e2af; border-color: #f9e2af; }
+.btn-icon-danger:hover  { background: #3a1e1e; border-color: #f38ba8; color: #f38ba8; }
+
+/* ─── Voice Row ─────────────────────────────────────────────────────────────── */
+.voice-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.voice-row .select { flex: 1; min-width: 0; }
+
+.voice-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.status-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: #313244;
-  color: #a6adc8;
-  transition: background 0.2s, color 0.2s;
-}
-
-.status-badge.online {
-  background: #1e3a2a;
-  color: #a6e3a1;
-}
-
-.status-badge.offline {
-  background: #3a1e1e;
-  color: #f38ba8;
-}
-
-.hint {
+.voices-link {
   font-size: 11px;
   color: #6c7086;
-  line-height: 1.4;
+  text-decoration: none;
+  transition: color 0.15s;
 }
 
-.hint code {
-  font-family: "Cascadia Code", "Fira Code", monospace;
-  background: #313244;
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-size: 10px;
-}
+.voices-link:hover { color: #cba6f7; }
 
 /* ─── Sliders ───────────────────────────────────────────────────────────────── */
 .slider-header {
@@ -151,7 +178,6 @@ body {
   border-radius: 2px;
   outline: none;
   cursor: pointer;
-  transition: background 0.15s;
 }
 
 .slider::-webkit-slider-thumb {
@@ -186,7 +212,7 @@ body {
   color: #585b70;
 }
 
-/* ─── Checkbox ──────────────────────────────────────────────────────────────── */
+/* ─── Checkboxes ────────────────────────────────────────────────────────────── */
 .checkbox-label {
   display: flex;
   align-items: flex-start;
@@ -197,6 +223,8 @@ body {
   line-height: 1.4;
 }
 
+.checkbox-label.small { font-size: 11px; }
+
 .checkbox-label input[type="checkbox"] {
   accent-color: #cba6f7;
   margin-top: 2px;
@@ -204,7 +232,7 @@ body {
   flex-shrink: 0;
 }
 
-/* ─── Buttons ───────────────────────────────────────────────────────────────── */
+/* ─── Action Buttons ────────────────────────────────────────────────────────── */
 .actions {
   flex-direction: row;
   gap: 8px;
@@ -223,38 +251,12 @@ body {
   outline: none;
 }
 
-.btn:active {
-  transform: scale(0.97);
-}
+.btn:active        { transform: scale(0.97); }
+.btn-primary       { background: #cba6f7; color: #1e1e2e; }
+.btn-primary:hover { opacity: 0.9; }
 
-.btn-primary {
-  background: #cba6f7;
-  color: #1e1e2e;
-}
-
-.btn-primary:hover {
-  opacity: 0.9;
-}
-
-.btn-danger {
-  background: #313244;
-  color: #f38ba8;
-  border: 1px solid #45475a;
-}
-
-.btn-danger:hover {
-  background: #3a1e1e;
-  border-color: #f38ba8;
-}
-
-/* ─── Footer ────────────────────────────────────────────────────────────────── */
-.footer-hint {
-  font-size: 11px;
-  color: #585b70;
-  line-height: 1.5;
-  padding-top: 4px;
-  border-top: 1px solid #313244;
-}
+.btn-danger        { background: #313244; color: #f38ba8; border: 1px solid #45475a; }
+.btn-danger:hover  { background: #3a1e1e; border-color: #f38ba8; }
 
 /* ─── Test Error ────────────────────────────────────────────────────────────── */
 .test-error {
@@ -265,62 +267,56 @@ body {
   border-radius: 5px;
   padding: 5px 9px;
   line-height: 1.4;
-  margin-top: -2px; /* tuck closer to the buttons */
+  margin-top: -2px;
 }
 
-/* ─── Voice Row ─────────────────────────────────────────────────────────────── */
-.voice-row {
+/* ─── Deleted Voice Log ─────────────────────────────────────────────────────── */
+.deleted-details {
+  border-top: 1px solid #313244;
+  padding-top: 6px;
+}
+
+.deleted-summary {
   display: flex;
-  gap: 6px;
   align-items: center;
-}
-
-.voice-row .select {
-  flex: 1;
-  min-width: 0;
-}
-
-.btn-icon {
-  flex-shrink: 0;
-  background: #313244;
-  border: 1px solid #45475a;
-  border-radius: 6px;
-  padding: 5px 8px;
-  font-size: 13px;
+  justify-content: space-between;
   cursor: pointer;
-  color: #cdd6f4;
-  line-height: 1;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-  outline: none;
+  list-style: none;
+  user-select: none;
 }
 
-.btn-icon:hover {
-  background: #45475a;
+.deleted-summary::-webkit-details-marker { display: none; }
+
+.deleted-count {
+  font-size: 10px;
+  color: #6c7086;
 }
 
-.btn-icon.active {
-  color: #f9e2af;
-  border-color: #f9e2af;
+.deleted-list {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.btn-icon-danger:hover {
-  background: #3a1e1e;
-  border-color: #f38ba8;
-  color: #f38ba8;
-}
-
-.voices-link {
+.deleted-item {
   font-size: 11px;
   color: #6c7086;
-  text-decoration: none;
-  transition: color 0.15s;
+  padding: 2px 0;
+  display: flex;
+  justify-content: space-between;
 }
 
-.voices-link:hover {
-  color: #cba6f7;
+.deleted-item span { color: #45475a; font-size: 10px; }
+
+/* ─── Footer ────────────────────────────────────────────────────────────────── */
+.footer-hint {
+  font-size: 11px;
+  color: #585b70;
+  line-height: 1.5;
+  padding-top: 4px;
+  border-top: 1px solid #313244;
 }
 
 /* ─── Visibility Helpers ────────────────────────────────────────────────────── */
-.hidden {
-  display: none !important;
-}
+.hidden { display: none !important; }

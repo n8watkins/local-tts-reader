@@ -3,63 +3,79 @@ const PIPER_BASE_URL = "http://127.0.0.1:5050";
 const PIPER_URL      = `${PIPER_BASE_URL}/tts`;
 const OFFSCREEN_URL  = "offscreen.html";
 
-// ─── Context Menu Setup ───────────────────────────────────────────────────────
-chrome.runtime.onInstalled.addListener(() => {
+// ─── Context Menu Builder ─────────────────────────────────────────────────────
+// Rebuilds context menus from stored profiles. Called on install and whenever
+// profiles change.
+async function rebuildMenus() {
+  await chrome.contextMenus.removeAll();
+
+  const { profiles = [], activeId = "" } =
+    await chrome.storage.local.get(["profiles", "activeId"]);
+
+  // Main read item — uses the active profile
   chrome.contextMenus.create({
-    id: "read-selection",
-    title: "Read selected text",
+    id:       "read-selection",
+    title:    "Read selected text",
     contexts: ["selection"]
   });
 
+  // Per-profile submenu (only shown when there's more than one profile)
+  if (profiles.length > 1) {
+    chrome.contextMenus.create({
+      id:       "read-as",
+      title:    "Read as…",
+      contexts: ["selection"]
+    });
+    for (const p of profiles) {
+      chrome.contextMenus.create({
+        id:       `profile-${p.id}`,
+        parentId: "read-as",
+        title:    p.name + (p.id === activeId ? " ✓" : ""),
+        contexts: ["selection"]
+      });
+    }
+  }
+
   chrome.contextMenus.create({
-    id: "stop-reading",
-    title: "Stop reading",
+    id:       "stop-reading",
+    title:    "Stop reading",
     contexts: ["all"]
   });
+}
+
+chrome.runtime.onInstalled.addListener(() => rebuildMenus());
+
+// Rebuild whenever profiles or activeId change (popup saved new data)
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.profiles || changes.activeId) rebuildMenus();
 });
 
-// ─── Offscreen Document Helpers ───────────────────────────────────────────────
-// W3 fix: always try to create rather than checking getContexts first.
-// Chrome can close an idle offscreen document while getContexts() still returns
-// a stale reference to it — sending a message to that stale document produces
-// "message channel closed" errors. Attempting createDocument unconditionally and
-// swallowing the "Only a single offscreen document" error (which means it is
-// genuinely already alive) guarantees we always end up with a live document.
+// ─── Offscreen Document ───────────────────────────────────────────────────────
 async function ensureOffscreenDocument() {
   try {
     await chrome.offscreen.createDocument({
-      url: OFFSCREEN_URL,
-      reasons: ["AUDIO_PLAYBACK"],
+      url:           OFFSCREEN_URL,
+      reasons:       ["AUDIO_PLAYBACK"],
       justification: "Play locally generated text-to-speech audio."
     });
   } catch (err) {
-    // "Only a single offscreen document may be created" → already alive, fine.
-    if (!err.message?.includes("Only a single offscreen document")) {
-      throw err;
-    }
+    if (!err.message?.includes("Only a single offscreen document")) throw err;
   }
 }
 
-// ─── TTS Provider: Browser Native ─────────────────────────────────────────────
-async function speakWithBrowser(text, settings) {
+// ─── Browser TTS ─────────────────────────────────────────────────────────────
+function speakWithBrowser(text, settings) {
   chrome.tts.stop();
-
   chrome.tts.speak(text, {
-    rate: settings.rate ?? 1.0,
-    pitch: settings.pitch ?? 1.0,
-    volume: settings.volume ?? 1.0,
+    rate:   settings.rate   ?? 1.0,
+    pitch:  1.0,
+    volume: Math.min(1, settings.volume ?? 1.0), // browser TTS capped at 1
     enqueue: false,
-    onEvent: (event) => {
-      if (event.type === "error") {
-        console.error("chrome.tts error:", event.errorMessage);
-      }
-    }
+    onEvent: (e) => { if (e.type === "error") console.error("tts error:", e.errorMessage); }
   });
 }
 
 // ─── Piper Health Check ───────────────────────────────────────────────────────
-// Used by speakWithPiper to confirm the server is reachable before attempting
-// playback. A fast 2.5 s timeout avoids blocking the caller for too long.
 async function checkPiperOnline() {
   try {
     const ctrl  = new AbortController();
@@ -72,118 +88,84 @@ async function checkPiperOnline() {
   }
 }
 
-// ─── TTS Provider: Local Piper ────────────────────────────────────────────────
-// Architectural fix for "message channel closed" errors:
-//
-// Previous design held a long-lived chrome.runtime message channel open from
-// background.js → offscreen.js until the offscreen document responded after its
-// first audio chunk. Chrome can recycle the offscreen document while that channel
-// is waiting, killing it and producing the "message channel closed" error.
-//
-// New design:
-//   1. Do a fast /health pre-flight check here in background.js.
-//      If offline → throw immediately so the caller can fall back to browser TTS.
-//   2. Ensure the offscreen document is alive.
-//   3. Fire-and-forget the speak-text message — offscreen plays independently.
-//      No long-lived channel, nothing to kill.
+// ─── Piper TTS ───────────────────────────────────────────────────────────────
 async function speakWithPiper(text, settings) {
   const online = await checkPiperOnline();
   if (!online) throw new Error("Piper server is offline");
 
   await ensureOffscreenDocument();
-
-  // Stop any current playback, then kick off the new one.
   chrome.runtime.sendMessage({ type: "stop-audio" }).catch(() => {});
   chrome.runtime.sendMessage({
-    type: "speak-text",
+    type:    "speak-text",
     text,
     piperUrl: PIPER_URL,
-    rate:   settings.rate   ?? 1.0,
-    volume: settings.volume ?? 1.0,
-    voice:  settings.voice  || ""
-  }).catch((err) => {
-    console.error("speak-text delivery failed:", err);
-  });
-  // No await — offscreen handles playback independently.
+    rate:    settings.rate   ?? 1.0,
+    volume:  settings.volume ?? 1.0,
+    voice:   settings.voice  || ""
+  }).catch((err) => console.error("speak-text delivery failed:", err));
 }
 
-// ─── Stop All Playback ────────────────────────────────────────────────────────
+// ─── Stop All ────────────────────────────────────────────────────────────────
 async function stopAll() {
-  // Stop browser TTS
   chrome.tts.stop();
-
-  // Stop Piper audio (if offscreen exists)
   try {
     const existing = await chrome.runtime.getContexts({
       contextTypes: ["OFFSCREEN_DOCUMENT"],
       documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)]
     });
-
-    if (existing.length > 0) {
-      chrome.runtime.sendMessage({ type: "stop-audio" }).catch(() => {});
-    }
+    if (existing.length > 0) chrome.runtime.sendMessage({ type: "stop-audio" }).catch(() => {});
   } catch (_) {}
+}
+
+// ─── Speak with profile settings (Piper → browser fallback) ──────────────────
+async function speakText(text, settings) {
+  try {
+    await speakWithPiper(text, settings);
+  } catch (err) {
+    console.error("Piper failed:", err.message);
+    const { fallback = true } = await chrome.storage.local.get("fallback");
+    if (fallback) {
+      console.log("Falling back to browser TTS");
+      speakWithBrowser(text, settings);
+    }
+  }
 }
 
 // ─── Context Menu Click Handler ───────────────────────────────────────────────
 chrome.contextMenus.onClicked.addListener(async (info) => {
-  if (info.menuItemId === "stop-reading") {
-    await stopAll();
-    return;
-  }
-
-  if (info.menuItemId !== "read-selection") return;
+  if (info.menuItemId === "stop-reading") { await stopAll(); return; }
 
   const text = info.selectionText?.trim();
   if (!text) return;
 
-  // Load settings
-  const settings = await chrome.storage.local.get({
-    engine: "browser",
-    rate: 1.0,
-    pitch: 1.0,
-    volume: 1.0,
-    fallbackToBrowser: true,
-    voice: ""
-  });
+  let { profiles = [], activeId = "" } =
+    await chrome.storage.local.get(["profiles", "activeId"]);
 
-  if (settings.engine === "piper") {
-    try {
-      await speakWithPiper(text, settings);
-    } catch (err) {
-      console.error("Piper TTS failed:", err);
-      if (settings.fallbackToBrowser) {
-        console.log("Falling back to browser TTS");
-        await speakWithBrowser(text, settings);
-      }
-    }
-  } else {
-    await speakWithBrowser(text, settings);
+  // If a specific profile was chosen from the submenu, switch to it
+  if (info.menuItemId.startsWith("profile-")) {
+    activeId = info.menuItemId.replace("profile-", "");
+    await chrome.storage.local.set({ activeId });
+    rebuildMenus();
   }
+
+  const profile = profiles.find(p => p.id === activeId) || profiles[0];
+  if (!profile) return;
+
+  await speakText(text, profile);
 });
 
 // ─── Messages from Popup ──────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "stop-all") {
     stopAll().then(() => sendResponse({ ok: true }));
-    return true; // async response
+    return true;
   }
 
   if (message.type === "test-voice") {
-    const { engine, text, settings } = message;
-
-    if (engine === "piper") {
-      // speakWithPiper throws immediately if Piper is offline (health check),
-      // giving accurate test feedback without a long-lived message channel.
-      speakWithPiper(text, settings)
-        .then(() => sendResponse({ ok: true }))
-        .catch((err) => sendResponse({ ok: false, error: err.message }));
-    } else {
-      speakWithBrowser(text, settings)
-        .then(() => sendResponse({ ok: true }))
-        .catch((err) => sendResponse({ ok: false, error: err.message }));
-    }
-
+    const { text, settings } = message;
+    speakWithPiper(text, settings)
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
 });
