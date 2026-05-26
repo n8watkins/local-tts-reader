@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Local TTS Reader",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Highlight text, right-click, and hear it read aloud using browser voice or local Piper TTS.",
   "permissions": [
     "contextMenus",

@@ -231,9 +231,10 @@ function showTestError(msg) {
 testBtn.addEventListener("click", () => {
   const engine = engineSelect.value;
   const settings = {
-    rate: parseFloat(rateSlider.value),
-    pitch: parseFloat(pitchSlider.value),
-    volume: parseFloat(volumeSlider.value)
+    rate:   parseFloat(rateSlider.value),
+    pitch:  parseFloat(pitchSlider.value),
+    volume: parseFloat(volumeSlider.value),
+    voice:  voiceSelect.value
   };
 
   testBtn.textContent = "Playing…";
