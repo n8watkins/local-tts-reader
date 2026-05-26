@@ -1,6 +1,7 @@
 // ─── Constants ────────────────────────────────────────────────────────────────
-const PIPER_URL = "http://127.0.0.1:5050/tts";
-const OFFSCREEN_URL = "offscreen.html";
+const PIPER_BASE_URL = "http://127.0.0.1:5050";
+const PIPER_URL      = `${PIPER_BASE_URL}/tts`;
+const OFFSCREEN_URL  = "offscreen.html";
 
 // ─── Context Menu Setup ───────────────────────────────────────────────────────
 chrome.runtime.onInstalled.addListener(() => {
@@ -19,12 +20,11 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // ─── Offscreen Document Helpers ───────────────────────────────────────────────
 // W3 fix: always try to create rather than checking getContexts first.
-// Chrome can close an idle offscreen document (once audio finishes) while
-// getContexts() still returns a stale reference to it. Sending a message to
-// that stale document produces "message channel closed" errors. By attempting
-// createDocument unconditionally and swallowing the "Only a single offscreen
-// document" error (which means it genuinely already exists and is alive), we
-// always end up with a live document.
+// Chrome can close an idle offscreen document while getContexts() still returns
+// a stale reference to it — sending a message to that stale document produces
+// "message channel closed" errors. Attempting createDocument unconditionally and
+// swallowing the "Only a single offscreen document" error (which means it is
+// genuinely already alive) guarantees we always end up with a live document.
 async function ensureOffscreenDocument() {
   try {
     await chrome.offscreen.createDocument({
@@ -57,50 +57,53 @@ async function speakWithBrowser(text, settings) {
   });
 }
 
+// ─── Piper Health Check ───────────────────────────────────────────────────────
+// Used by speakWithPiper to confirm the server is reachable before attempting
+// playback. A fast 2.5 s timeout avoids blocking the caller for too long.
+async function checkPiperOnline() {
+  try {
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 2500);
+    const res   = await fetch(`${PIPER_BASE_URL}/health`, { signal: ctrl.signal });
+    clearTimeout(timer);
+    return res.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
 // ─── TTS Provider: Local Piper ────────────────────────────────────────────────
-// C2 fix: now awaits a response from offscreen.js that is sent after the first
-// chunk fetch succeeds or fails. This allows server-down errors (and other first-
-// chunk failures) to propagate back so the browser-voice fallback actually fires.
+// Architectural fix for "message channel closed" errors:
+//
+// Previous design held a long-lived chrome.runtime message channel open from
+// background.js → offscreen.js until the offscreen document responded after its
+// first audio chunk. Chrome can recycle the offscreen document while that channel
+// is waiting, killing it and producing the "message channel closed" error.
+//
+// New design:
+//   1. Do a fast /health pre-flight check here in background.js.
+//      If offline → throw immediately so the caller can fall back to browser TTS.
+//   2. Ensure the offscreen document is alive.
+//   3. Fire-and-forget the speak-text message — offscreen plays independently.
+//      No long-lived channel, nothing to kill.
 async function speakWithPiper(text, settings) {
+  const online = await checkPiperOnline();
+  if (!online) throw new Error("Piper server is offline");
+
   await ensureOffscreenDocument();
 
-  // Stop any current Piper audio first
+  // Stop any current playback, then kick off the new one.
   chrome.runtime.sendMessage({ type: "stop-audio" }).catch(() => {});
-
-  // Await response from offscreen: resolves/rejects after first chunk result.
-  // If the server is unreachable, offscreen sends { ok: false, error: "..." }
-  // and this throws, triggering the fallback in the caller.
-  //
-  // W3 fix: if the channel closes (stale offscreen doc), close it, recreate,
-  // and retry the speak-text once before giving up.
-  const speakMsg = () => chrome.runtime.sendMessage({
+  chrome.runtime.sendMessage({
     type: "speak-text",
     text,
     piperUrl: PIPER_URL,
-    rate: settings.rate ?? 1.0,
+    rate:   settings.rate   ?? 1.0,
     volume: settings.volume ?? 1.0
+  }).catch((err) => {
+    console.error("speak-text delivery failed:", err);
   });
-
-  let response;
-  try {
-    response = await speakMsg();
-  } catch (err) {
-    const channelClosed = err.message?.includes("message channel closed") ||
-                          err.message?.includes("Could not establish connection");
-    if (!channelClosed) {
-      throw new Error(`Failed to reach offscreen document: ${err.message}`);
-    }
-    // Stale document — close it, recreate, and retry once.
-    await chrome.offscreen.closeDocument().catch(() => {});
-    await ensureOffscreenDocument();
-    response = await speakMsg().catch((err2) => {
-      throw new Error(`Failed to reach offscreen document: ${err2.message}`);
-    });
-  }
-
-  if (response && !response.ok) {
-    throw new Error(response.error || "Piper TTS failed");
-  }
+  // No await — offscreen handles playback independently.
 }
 
 // ─── Stop All Playback ────────────────────────────────────────────────────────
@@ -145,8 +148,6 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
   if (settings.engine === "piper") {
     try {
       await speakWithPiper(text, settings);
-      // C2: speakWithPiper now throws on first-chunk failure, so this fallback
-      // actually works for the primary case (server unreachable, server error).
     } catch (err) {
       console.error("Piper TTS failed:", err);
       if (settings.fallbackToBrowser) {
@@ -170,8 +171,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const { engine, text, settings } = message;
 
     if (engine === "piper") {
-      // speakWithPiper now awaits first-chunk result — sendResponse fires after
-      // the first fetch succeeds/fails, giving accurate test feedback.
+      // speakWithPiper throws immediately if Piper is offline (health check),
+      // giving accurate test feedback without a long-lived message channel.
       speakWithPiper(text, settings)
         .then(() => sendResponse({ ok: true }))
         .catch((err) => sendResponse({ ok: false, error: err.message }));

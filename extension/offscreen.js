@@ -34,8 +34,7 @@ function splitIntoChunks(text, maxLength = 350) {
 
 // ─── Fetch Audio from Piper ───────────────────────────────────────────────────
 // V2 fix: 30s per-chunk timeout so a server that accepts TCP but stalls never
-// leaves background.js's await hanging indefinitely. 30s is half of Piper's own
-// 60s process timeout, giving the server time to do its work without blocking forever.
+// leaves the queue hanging indefinitely.
 const FETCH_TIMEOUT_MS = 30_000;
 
 async function fetchPiperAudio(text, piperUrl) {
@@ -146,14 +145,12 @@ function stopAll() {
 }
 
 // ─── Sequential Queue Player ──────────────────────────────────────────────────
-// C2 fix: accepts sendResponse and reports after the first chunk result so the
-//         background service worker can detect server-down errors and trigger
-//         the browser-voice fallback.
-// Uses playGeneration to detect when a newer speak request has superseded this one.
-async function playQueue(chunks, piperUrl, volume, rate, sendResponse, generation) {
+// Architectural simplification: background.js now does a health-check pre-flight
+// and fires speak-text as fire-and-forget, so playQueue no longer needs to call
+// sendResponse. It simply plays chunks until done, stopped, or an error occurs.
+async function playQueue(chunks, piperUrl, volume, rate, generation) {
   isPlaying = true;
   playbackQueue = [...chunks];
-  let responded = false;
 
   const live = () => isPlaying && playGeneration === generation;
 
@@ -163,57 +160,25 @@ async function playQueue(chunks, piperUrl, volume, rate, sendResponse, generatio
     try {
       const blob = await fetchPiperAudio(chunk, piperUrl);
 
-      // C2: report first-chunk success so background's speakWithPiper() can resolve
-      if (!responded) {
-        sendResponse({ ok: true });
-        responded = true;
-      }
-
       if (!live()) break;
 
-      await playBlob(blob, volume, rate); // C6: rate forwarded
+      await playBlob(blob, volume, rate);
 
     } catch (err) {
-      // V3 fix: check the sentinel flag, not the message string. Any browser
-      // DOMException or future refactor that produces a matching message string
-      // would previously be misidentified as an intentional stop.
-      const wasStopped = err.isStop === true;
+      // V3: check sentinel flag, not message string
+      if (err.isStop === true) break; // intentional stop — exit silently
 
-      if (!responded && !wasStopped) {
-        // C2: first chunk failed for a real reason (server down, bad response, etc.)
-        // Report to background so the fallback can trigger.
-        //
-        // W1 fix: only send {ok:false} if the session is still live. If the user
-        // stopped us and the in-flight fetch later aborts or errors (e.g. the
-        // 30-second AbortController fires), !live() is true and we must NOT send
-        // a failure response — doing so would cause background.js to trigger the
-        // browser-voice fallback even though the user deliberately stopped reading.
-        if (live()) {
-          sendResponse({ ok: false, error: err.message });
-          responded = true;
-        }
-        break;
-      }
-
-      if (!wasStopped) {
-        // V5 fix: break instead of continuing. Silently skipping failed chunks
-        // left users with partial audio and no fallback (background already got
-        // {ok:true} after chunk 1). Break on first post-chunk-1 error instead.
+      if (live()) {
+        // Real error mid-playback — log and stop (don't continue to next chunk)
         console.error("TTS chunk error:", err);
-        break;
       }
-      // wasStopped: live() will be false, loop exits naturally via while condition
+      break;
     }
   }
 
   // Only reset isPlaying if we're still the active generation
   if (playGeneration === generation) {
     isPlaying = false;
-  }
-
-  // Safety net: ensure sendResponse is always called (e.g. empty chunk list)
-  if (!responded) {
-    sendResponse({ ok: true });
   }
 }
 
@@ -225,7 +190,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === "speak-text") {
-    // C6 fix: destructure rate (was missing — slider setting was silently dropped)
     const { text, piperUrl, volume = 1.0, rate = 1.0 } = message;
 
     // Stop previous playback and bump generation so stale queues self-terminate
@@ -234,10 +198,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const gen = playGeneration;
 
     const chunks = splitIntoChunks(text);
-    playQueue(chunks, piperUrl, volume, rate, sendResponse, gen).catch((err) => {
+
+    // Fire-and-forget: background.js no longer awaits a response, so respond
+    // immediately and let playback run independently. This eliminates the
+    // long-lived message channel that Chrome was killing mid-flight.
+    playQueue(chunks, piperUrl, volume, rate, gen).catch((err) => {
       console.error("Queue playback error:", err);
     });
 
-    return true; // async response — Chrome keeps the message port open
+    sendResponse({ ok: true });
+    return false; // synchronous response already sent — port can close immediately
   }
 });
