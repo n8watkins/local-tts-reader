@@ -18,19 +18,26 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // ─── Offscreen Document Helpers ───────────────────────────────────────────────
+// W3 fix: always try to create rather than checking getContexts first.
+// Chrome can close an idle offscreen document (once audio finishes) while
+// getContexts() still returns a stale reference to it. Sending a message to
+// that stale document produces "message channel closed" errors. By attempting
+// createDocument unconditionally and swallowing the "Only a single offscreen
+// document" error (which means it genuinely already exists and is alive), we
+// always end up with a live document.
 async function ensureOffscreenDocument() {
-  const existing = await chrome.runtime.getContexts({
-    contextTypes: ["OFFSCREEN_DOCUMENT"],
-    documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)]
-  });
-
-  if (existing.length > 0) return;
-
-  await chrome.offscreen.createDocument({
-    url: OFFSCREEN_URL,
-    reasons: ["AUDIO_PLAYBACK"],
-    justification: "Play locally generated text-to-speech audio."
-  });
+  try {
+    await chrome.offscreen.createDocument({
+      url: OFFSCREEN_URL,
+      reasons: ["AUDIO_PLAYBACK"],
+      justification: "Play locally generated text-to-speech audio."
+    });
+  } catch (err) {
+    // "Only a single offscreen document may be created" → already alive, fine.
+    if (!err.message?.includes("Only a single offscreen document")) {
+      throw err;
+    }
+  }
 }
 
 // ─── TTS Provider: Browser Native ─────────────────────────────────────────────
@@ -63,15 +70,33 @@ async function speakWithPiper(text, settings) {
   // Await response from offscreen: resolves/rejects after first chunk result.
   // If the server is unreachable, offscreen sends { ok: false, error: "..." }
   // and this throws, triggering the fallback in the caller.
-  const response = await chrome.runtime.sendMessage({
+  //
+  // W3 fix: if the channel closes (stale offscreen doc), close it, recreate,
+  // and retry the speak-text once before giving up.
+  const speakMsg = () => chrome.runtime.sendMessage({
     type: "speak-text",
     text,
     piperUrl: PIPER_URL,
     rate: settings.rate ?? 1.0,
     volume: settings.volume ?? 1.0
-  }).catch((err) => {
-    throw new Error(`Failed to reach offscreen document: ${err.message}`);
   });
+
+  let response;
+  try {
+    response = await speakMsg();
+  } catch (err) {
+    const channelClosed = err.message?.includes("message channel closed") ||
+                          err.message?.includes("Could not establish connection");
+    if (!channelClosed) {
+      throw new Error(`Failed to reach offscreen document: ${err.message}`);
+    }
+    // Stale document — close it, recreate, and retry once.
+    await chrome.offscreen.closeDocument().catch(() => {});
+    await ensureOffscreenDocument();
+    response = await speakMsg().catch((err2) => {
+      throw new Error(`Failed to reach offscreen document: ${err2.message}`);
+    });
+  }
 
   if (response && !response.ok) {
     throw new Error(response.error || "Piper TTS failed");
