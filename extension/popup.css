@@ -40,6 +40,13 @@ body {
   font-weight: 600;
   color: #cba6f7;
   letter-spacing: 0.02em;
+  flex: 1;
+}
+
+.app-version {
+  font-size: 10px;
+  color: #585b70;
+  letter-spacing: 0.03em;
 }
 
 /* ─── Sections ──────────────────────────────────────────────────────────────── */

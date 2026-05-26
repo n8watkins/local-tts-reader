@@ -232,4 +232,7 @@ stopBtn.addEventListener("click", () => {
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+document.getElementById("app-version").textContent =
+  "v" + chrome.runtime.getManifest().version;
+
 loadSettings();
