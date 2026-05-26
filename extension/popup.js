@@ -11,6 +11,7 @@ const pitchSlider      = document.getElementById("pitch-slider");
 const pitchValue       = document.getElementById("pitch-value");
 const volumeSlider     = document.getElementById("volume-slider");
 const volumeValue      = document.getElementById("volume-value");
+const voiceSelect      = document.getElementById("voice-select");
 const fallbackCheck    = document.getElementById("fallback-checkbox");
 const testBtn          = document.getElementById("test-btn");
 const stopBtn          = document.getElementById("stop-btn");
@@ -22,7 +23,8 @@ const DEFAULTS = {
   rate: 1.0,
   pitch: 1.0,
   volume: 1.0,
-  fallbackToBrowser: true
+  fallbackToBrowser: true,
+  voice: ""  // empty = server default
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -44,6 +46,45 @@ function applyEngineUI(engine) {
     // C7 fix: scheduleStatusCheck() debounces rapid engine-toggle clicks so
     // multiple concurrent fetch sequences don't race on the badge.
     scheduleStatusCheck();
+    loadVoiceList(voiceSelect.value);
+  }
+}
+
+// ─── Voice Name Formatter ─────────────────────────────────────────────────────
+// "en_US-ryan-high.onnx" → "Ryan · High"
+function formatVoiceName(filename) {
+  const base  = filename.replace(/\.onnx$/, "");
+  const parts = base.split("-");
+  if (parts.length >= 3) {
+    const name    = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
+    const quality = parts[2].charAt(0).toUpperCase() + parts[2].slice(1);
+    return `${name} · ${quality}`;
+  }
+  return base;
+}
+
+// ─── Voice List Loader ────────────────────────────────────────────────────────
+async function loadVoiceList(selectedVoice) {
+  try {
+    const res     = await fetch(`${PIPER_URL}/voices`);
+    const { voices } = await res.json();
+
+    voiceSelect.innerHTML = "";
+    for (const v of voices) {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = formatVoiceName(v);
+      if (v === selectedVoice) opt.selected = true;
+      voiceSelect.appendChild(opt);
+    }
+
+    // If nothing matched the stored value, pick first and save
+    if (!voiceSelect.value && voices.length > 0) {
+      voiceSelect.value = voices[0];
+      saveSettings();
+    }
+  } catch (_) {
+    voiceSelect.innerHTML = '<option value="">Server offline</option>';
   }
 }
 
@@ -126,7 +167,8 @@ function saveSettings() {
     rate: parseFloat(rateSlider.value),
     pitch: parseFloat(pitchSlider.value),
     volume: parseFloat(volumeSlider.value),
-    fallbackToBrowser: fallbackCheck.checked
+    fallbackToBrowser: fallbackCheck.checked,
+    voice: voiceSelect.value
   });
 }
 
@@ -143,6 +185,9 @@ async function loadSettings() {
   rateValue.textContent   = fmt(settings.rate);
   pitchValue.textContent  = fmt(settings.pitch);
   volumeValue.textContent = fmt(settings.volume);
+
+  // Pre-set stored voice so loadVoiceList can select it after fetching
+  voiceSelect.value = settings.voice || "";
 
   applyEngineUI(settings.engine);
 }
@@ -168,6 +213,7 @@ volumeSlider.addEventListener("input", () => {
   saveSettings();
 });
 
+voiceSelect.addEventListener("change", saveSettings);
 fallbackCheck.addEventListener("change", saveSettings);
 
 // ─── Test Error Display ───────────────────────────────────────────────────────

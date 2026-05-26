@@ -37,7 +37,7 @@ function splitIntoChunks(text, maxLength = 350) {
 // leaves the queue hanging indefinitely.
 const FETCH_TIMEOUT_MS = 30_000;
 
-async function fetchPiperAudio(text, piperUrl) {
+async function fetchPiperAudio(text, piperUrl, voice = "") {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -46,7 +46,7 @@ async function fetchPiperAudio(text, piperUrl) {
     response = await fetch(piperUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify(voice ? { text, voice } : { text }),
       signal: controller.signal
     });
   } finally {
@@ -148,7 +148,7 @@ function stopAll() {
 // Architectural simplification: background.js now does a health-check pre-flight
 // and fires speak-text as fire-and-forget, so playQueue no longer needs to call
 // sendResponse. It simply plays chunks until done, stopped, or an error occurs.
-async function playQueue(chunks, piperUrl, volume, rate, generation) {
+async function playQueue(chunks, piperUrl, volume, rate, voice, generation) {
   isPlaying = true;
   playbackQueue = [...chunks];
 
@@ -158,7 +158,7 @@ async function playQueue(chunks, piperUrl, volume, rate, generation) {
     const chunk = playbackQueue.shift();
 
     try {
-      const blob = await fetchPiperAudio(chunk, piperUrl);
+      const blob = await fetchPiperAudio(chunk, piperUrl, voice);
 
       if (!live()) break;
 
@@ -190,7 +190,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === "speak-text") {
-    const { text, piperUrl, volume = 1.0, rate = 1.0 } = message;
+    const { text, piperUrl, volume = 1.0, rate = 1.0, voice = "" } = message;
 
     // Stop previous playback and bump generation so stale queues self-terminate
     stopAll();
@@ -202,7 +202,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     // Fire-and-forget: background.js no longer awaits a response, so respond
     // immediately and let playback run independently. This eliminates the
     // long-lived message channel that Chrome was killing mid-flight.
-    playQueue(chunks, piperUrl, volume, rate, gen).catch((err) => {
+    playQueue(chunks, piperUrl, volume, rate, voice, gen).catch((err) => {
       console.error("Queue playback error:", err);
     });
 

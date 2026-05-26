@@ -99,7 +99,8 @@ async function speakWithPiper(text, settings) {
     text,
     piperUrl: PIPER_URL,
     rate:   settings.rate   ?? 1.0,
-    volume: settings.volume ?? 1.0
+    volume: settings.volume ?? 1.0,
+    voice:  settings.voice  || ""
   }).catch((err) => {
     console.error("speak-text delivery failed:", err);
   });
@@ -142,7 +143,8 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
     rate: 1.0,
     pitch: 1.0,
     volume: 1.0,
-    fallbackToBrowser: true
+    fallbackToBrowser: true,
+    voice: ""
   });
 
   if (settings.engine === "piper") {

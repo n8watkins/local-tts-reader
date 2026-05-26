@@ -31,7 +31,7 @@ const VOICE_DIR  = path.join(__dirname, "piper", "voices");
 const OUTPUT_DIR = path.join(__dirname, "output");
 
 // Default voice model (change to match your downloaded .onnx file)
-const DEFAULT_VOICE = "en_US-amy-medium.onnx";
+const DEFAULT_VOICE = "en_US-ryan-high.onnx";
 
 // ─── App Setup ────────────────────────────────────────────────────────────────
 const app = express();
@@ -121,7 +121,7 @@ function runPiper({ text, outputPath, voiceModel }) {
 // ─── POST /tts ────────────────────────────────────────────────────────────────
 app.post("/tts", async (req, res) => {
   const text  = req.body?.text;
-  const voice = req.body?.voice ?? DEFAULT_VOICE;
+  const voice = (req.body?.voice && req.body.voice.trim()) || DEFAULT_VOICE;
 
   // Validate text
   const validationError = validateText(text);
