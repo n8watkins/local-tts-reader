@@ -96,8 +96,21 @@ function playBlob(blob, volume = 1.0, rate = 1.0) {
     gain.connect(audioCtx.destination);
     audioCtx.resume().catch(() => {});
 
+    // Disconnect Web Audio nodes after use to prevent accumulating dead nodes
+    // on the shared AudioContext across chunks. Each playBlob call creates a
+    // new source+gain pair; without disconnect they linger until the context
+    // is GC'd, which may never happen during a long session.
+    let nodesDisconnected = false;
+    function disconnectNodes() {
+      if (nodesDisconnected) return;
+      nodesDisconnected = true;
+      try { source.disconnect(); } catch (_) {}
+      try { gain.disconnect();  } catch (_) {}
+    }
+
     currentAudio.onended = () => {
       rejectCurrentPlay = null;
+      disconnectNodes();
       URL.revokeObjectURL(url);
       currentBlobUrl = null;
       currentAudio = null;
@@ -107,6 +120,7 @@ function playBlob(blob, volume = 1.0, rate = 1.0) {
     // C5 fix: e is a plain Event; the actual error lives at e.target.error (MediaError)
     currentAudio.onerror = (e) => {
       rejectCurrentPlay = null;
+      disconnectNodes();
       URL.revokeObjectURL(url);
       currentBlobUrl = null;
       currentAudio = null;
@@ -120,6 +134,7 @@ function playBlob(blob, volume = 1.0, rate = 1.0) {
 
     currentAudio.play().catch((err) => {
       rejectCurrentPlay = null;
+      disconnectNodes();
       reject(err);
     });
   });

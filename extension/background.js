@@ -43,11 +43,24 @@ async function rebuildMenus() {
   });
 }
 
-chrome.runtime.onInstalled.addListener(() => rebuildMenus());
+chrome.runtime.onInstalled.addListener(async () => {
+  // Migrate old fallbackToBrowser storage key to fallback (one-time, on install/update)
+  const data = await chrome.storage.local.get(["fallback", "fallbackToBrowser"]);
+  if (data.fallbackToBrowser !== undefined && data.fallback === undefined) {
+    await chrome.storage.local.set({ fallback: data.fallbackToBrowser });
+    await chrome.storage.local.remove("fallbackToBrowser");
+  }
+  await rebuildMenus();
+});
 
-// Rebuild whenever profiles or activeId change (popup saved new data)
+// Rebuild whenever profiles or activeId change (popup saved new data).
+// Debounced to prevent concurrent rebuilds when both keys change in one save.
+let _rebuildTimer = null;
 chrome.storage.onChanged.addListener((changes) => {
-  if (changes.profiles || changes.activeId) rebuildMenus();
+  if (changes.profiles || changes.activeId) {
+    clearTimeout(_rebuildTimer);
+    _rebuildTimer = setTimeout(() => rebuildMenus(), 50);
+  }
 });
 
 // ─── Offscreen Document ───────────────────────────────────────────────────────
@@ -141,11 +154,13 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
   let { profiles = [], activeId = "" } =
     await chrome.storage.local.get(["profiles", "activeId"]);
 
-  // If a specific profile was chosen from the submenu, switch to it
+  // If a specific profile was chosen from the submenu, switch to it and stop —
+  // don't fall through to speakText; the user only selected a profile, not read.
   if (info.menuItemId.startsWith("profile-")) {
     activeId = info.menuItemId.replace("profile-", "");
     await chrome.storage.local.set({ activeId });
-    rebuildMenus();
+    await rebuildMenus();
+    return;
   }
 
   const profile = profiles.find(p => p.id === activeId) || profiles[0];
@@ -163,7 +178,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.type === "test-voice") {
     const { text, settings } = message;
-    speakWithPiper(text, settings)
+    // Use speakText (not speakWithPiper directly) so the browser-TTS fallback
+    // path is honoured when the Piper server is offline.
+    speakText(text, settings)
       .then(() => sendResponse({ ok: true }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;

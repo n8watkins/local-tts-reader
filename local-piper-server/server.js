@@ -217,7 +217,10 @@ app.delete("/voices/:name", async (req, res) => {
   const onnxPath = path.join(VOICE_DIR, name);
   const jsonPath  = onnxPath + ".json";
   try {
-    await Promise.allSettled([
+    // Promise.all (not allSettled) so any rm failure is caught and returned
+    // as a 500 error. allSettled always resolves, silently swallowing errors.
+    // force:true suppresses ENOENT, so missing files are still safe to delete.
+    await Promise.all([
       fs.rm(onnxPath, { force: true }),
       fs.rm(jsonPath, { force: true })
     ]);

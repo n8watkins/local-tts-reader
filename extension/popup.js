@@ -168,8 +168,10 @@ function renderVoiceList(selectedVoice) {
       voiceSelect.appendChild(opt);
     }
     if (!voiceSelect.value && sorted.length > 0) {
+      // Select first available voice visually, but don't save — the profile's
+      // stored voice takes precedence. Saving here would overwrite the profile
+      // with an arbitrary default every time the voice list is (re)fetched.
       voiceSelect.value = sorted[0];
-      saveActiveProfileSettings();
     }
   }
 
@@ -253,7 +255,15 @@ function renderDeletedLog() {
   for (const d of deletedVoices) {
     const row = document.createElement("div");
     row.className = "deleted-item";
-    row.innerHTML = `<span class="deleted-name">${d.displayName}</span><span>${d.deletedAt}</span>`;
+    // Use textContent (not innerHTML) — displayName is derived from a server
+    // filename and could contain characters that would be interpreted as HTML.
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "deleted-name";
+    nameSpan.textContent = d.displayName;
+    const dateSpan = document.createElement("span");
+    dateSpan.textContent = d.deletedAt;
+    row.appendChild(nameSpan);
+    row.appendChild(dateSpan);
     deletedList.appendChild(row);
   }
 }
@@ -363,6 +373,14 @@ document.getElementById("app-version").textContent =
   "v" + chrome.runtime.getManifest().version;
 
 async function init() {
+  // Migrate old fallbackToBrowser key → fallback (one-time migration for
+  // users upgrading from an earlier schema before the key was renamed).
+  const rawKeys = await chrome.storage.local.get(["fallback", "fallbackToBrowser"]);
+  if (rawKeys.fallbackToBrowser !== undefined && rawKeys.fallback === undefined) {
+    await chrome.storage.local.set({ fallback: rawKeys.fallbackToBrowser });
+    await chrome.storage.local.remove("fallbackToBrowser");
+  }
+
   const stored = await chrome.storage.local.get({
     profiles:      [],
     activeId:      "",
