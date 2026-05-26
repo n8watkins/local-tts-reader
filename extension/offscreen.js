@@ -3,8 +3,9 @@
 
 let currentAudio = null;
 let currentBlobUrl = null;
-let rejectCurrentPlay = null; // C1: lets stopCurrentAudio() settle a pending playBlob() Promise
-let audioCtx = null;          // Web Audio API context — reused across chunks for volume boost
+let rejectCurrentPlay = null;    // C1: lets stopCurrentAudio() settle a pending playBlob() Promise
+let currentDisconnectNodes = null; // stores the active chunk's disconnectNodes so stopCurrentAudio can call it
+let audioCtx = null;             // Web Audio API context — reused across chunks for volume boost
 let playbackQueue = [];
 let isPlaying = false;
 let playGeneration = 0; // incremented on each new speak request; stale queues self-terminate
@@ -104,9 +105,13 @@ function playBlob(blob, volume = 1.0, rate = 1.0) {
     function disconnectNodes() {
       if (nodesDisconnected) return;
       nodesDisconnected = true;
+      currentDisconnectNodes = null; // clear module-level ref once called
       try { source.disconnect(); } catch (_) {}
       try { gain.disconnect();  } catch (_) {}
     }
+    // Expose to stopCurrentAudio() so it can disconnect nodes when stop is
+    // called mid-playback (onended/onerror/play.catch won't fire on a pause).
+    currentDisconnectNodes = disconnectNodes;
 
     currentAudio.onended = () => {
       rejectCurrentPlay = null;
@@ -161,6 +166,13 @@ function stopCurrentAudio() {
   if (currentBlobUrl) {
     URL.revokeObjectURL(currentBlobUrl);
     currentBlobUrl = null;
+  }
+  // Disconnect Web Audio nodes for the chunk that was just stopped.
+  // (disconnectNodes is a closure inside playBlob; we keep a module-level
+  //  reference so we can call it from here even when stop fires mid-playback.)
+  if (currentDisconnectNodes) {
+    currentDisconnectNodes();
+    currentDisconnectNodes = null;
   }
 }
 

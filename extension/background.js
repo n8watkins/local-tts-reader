@@ -59,7 +59,10 @@ let _rebuildTimer = null;
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.profiles || changes.activeId) {
     clearTimeout(_rebuildTimer);
-    _rebuildTimer = setTimeout(() => rebuildMenus(), 50);
+    _rebuildTimer = setTimeout(
+      () => rebuildMenus().catch(err => console.error("[TTS] rebuildMenus failed:", err)),
+      50
+    );
   }
 });
 
@@ -158,6 +161,10 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
   // don't fall through to speakText; the user only selected a profile, not read.
   if (info.menuItemId.startsWith("profile-")) {
     activeId = info.menuItemId.replace("profile-", "");
+    // Cancel any pending debounced rebuild before our own await so the
+    // storage.onChanged listener (which fires when we set activeId below)
+    // doesn't schedule a second rebuild that races with the one we're about to do.
+    clearTimeout(_rebuildTimer);
     await chrome.storage.local.set({ activeId });
     await rebuildMenus();
     return;
@@ -178,11 +185,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.type === "test-voice") {
     const { text, settings } = message;
-    // Use speakText (not speakWithPiper directly) so the browser-TTS fallback
-    // path is honoured when the Piper server is offline.
-    speakText(text, settings)
+    // Use speakWithPiper directly so errors can surface to the popup.
+    // Apply the browser-TTS fallback manually here so the popup still gets
+    // a meaningful { ok: false } when both Piper and fallback are unavailable.
+    speakWithPiper(text, settings)
       .then(() => sendResponse({ ok: true }))
-      .catch((err) => sendResponse({ ok: false, error: err.message }));
+      .catch(async (piperErr) => {
+        const { fallback = true } = await chrome.storage.local.get("fallback");
+        if (fallback) {
+          speakWithBrowser(text, settings);
+          sendResponse({ ok: true });
+        } else {
+          sendResponse({ ok: false, error: piperErr.message });
+        }
+      });
     return true;
   }
 });

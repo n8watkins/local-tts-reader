@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Local TTS Reader — Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="page">
+
+      <!-- Page Header -->
+      <header class="page-header">
+        <span class="page-icon">🔊</span>
+        <div class="page-title-block">
+          <h1 class="page-title">Local TTS Reader</h1>
+          <span class="page-subtitle">Settings</span>
+        </div>
+        <span class="page-version" id="page-version"></span>
+        <span class="server-badge" id="server-badge">Checking…</span>
+      </header>
+
+      <!-- Tabs -->
+      <nav class="tabs" role="tablist">
+        <button class="tab active" data-tab="profiles" role="tab">Profiles</button>
+        <button class="tab"        data-tab="voices"   role="tab">Voices</button>
+        <button class="tab"        data-tab="settings" role="tab">Settings</button>
+        <button class="tab"        data-tab="credits"  role="tab">Credits</button>
+      </nav>
+
+      <!-- ── Profiles Tab ─────────────────────────────────────────────────── -->
+      <section id="tab-profiles" class="tab-panel" role="tabpanel">
+        <div class="panel-toolbar">
+          <h2 class="panel-heading">Profiles</h2>
+          <span class="panel-hint" id="profile-count-hint"></span>
+          <button class="btn btn-primary" id="new-profile-btn">＋ New Profile</button>
+        </div>
+
+        <!-- Inline create form (hidden by default) -->
+        <div class="create-form hidden" id="create-profile-form">
+          <h3 class="form-title">New Profile</h3>
+          <div class="form-grid">
+            <label class="form-label">Name</label>
+            <input class="form-input" type="text" id="cp-name" placeholder="e.g. Audiobooks" maxlength="40" />
+
+            <label class="form-label">Voice</label>
+            <select class="form-select" id="cp-voice">
+              <option value="">— None / use default —</option>
+            </select>
+
+            <label class="form-label">Speed</label>
+            <div class="slider-inline">
+              <input class="slider" type="range" id="cp-rate" min="0.5" max="2.5" step="0.1" value="1.0" />
+              <span class="slider-val" id="cp-rate-val">1.0×</span>
+            </div>
+
+            <label class="form-label">Volume</label>
+            <div class="slider-inline">
+              <input class="slider" type="range" id="cp-volume" min="0" max="2" step="0.05" value="1.0" />
+              <span class="slider-val" id="cp-volume-val">1.0</span>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="cp-save-btn">Save Profile</button>
+            <button class="btn btn-ghost"   id="cp-cancel-btn">Cancel</button>
+          </div>
+        </div>
+
+        <div class="profile-list" id="profile-list">
+          <!-- Rendered by JS -->
+        </div>
+      </section>
+
+      <!-- ── Voices Tab ────────────────────────────────────────────────────── -->
+      <section id="tab-voices" class="tab-panel hidden" role="tabpanel">
+        <div class="panel-toolbar">
+          <h2 class="panel-heading">Installed Voices</h2>
+          <label class="toggle-label">
+            <input type="checkbox" id="favs-only-check" />
+            <span>Favorites only</span>
+          </label>
+        </div>
+
+        <div class="voices-offline-banner hidden" id="voices-offline-banner">
+          ⚠ Piper server is offline — start the server to manage voices.
+        </div>
+
+        <div class="voice-grid" id="voice-grid">
+          <!-- Rendered by JS -->
+        </div>
+
+        <div class="voices-footer">
+          <a class="link-external"
+             href="https://huggingface.co/rhasspy/piper-voices/tree/main/en"
+             target="_blank">
+            Browse &amp; download more voices on HuggingFace ↗
+          </a>
+        </div>
+
+        <!-- Deleted voice log -->
+        <details class="deleted-section" id="deleted-section">
+          <summary class="deleted-summary">
+            <span>Deleted voices</span>
+            <span class="deleted-count" id="deleted-count"></span>
+          </summary>
+          <div class="deleted-list" id="deleted-list"></div>
+        </details>
+      </section>
+
+      <!-- ── Settings Tab ──────────────────────────────────────────────────── -->
+      <section id="tab-settings" class="tab-panel hidden" role="tabpanel">
+        <h2 class="panel-heading">Settings</h2>
+
+        <div class="settings-group">
+          <h3 class="settings-group-title">Text-to-Speech Engine</h3>
+          <label class="setting-row">
+            <input type="checkbox" id="fallback-check" />
+            <div>
+              <span class="setting-label">Browser TTS fallback</span>
+              <span class="setting-desc">
+                When Piper is offline, use the browser's built-in voice instead of failing silently.
+              </span>
+            </div>
+          </label>
+        </div>
+
+        <div class="settings-group">
+          <h3 class="settings-group-title">Piper Server</h3>
+          <div class="setting-row setting-row-info">
+            <span class="setting-label">Address</span>
+            <code class="setting-code">http://127.0.0.1:5050</code>
+          </div>
+          <div class="setting-row setting-row-info">
+            <span class="setting-label">Status</span>
+            <span id="settings-server-status">—</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Credits Tab ───────────────────────────────────────────────────── -->
+      <section id="tab-credits" class="tab-panel hidden" role="tabpanel">
+        <h2 class="panel-heading">Credits &amp; Setup</h2>
+
+        <div class="credits-block">
+          <div class="credits-logo">🔊</div>
+          <h3 class="credits-title">Local TTS Reader</h3>
+          <p class="credits-desc">
+            A Chrome extension that reads selected text aloud using a local
+            <a class="link" href="https://github.com/rhasspy/piper" target="_blank">Piper TTS</a>
+            server — no cloud, no API keys, fully offline.
+          </p>
+        </div>
+
+        <div class="credits-section">
+          <h4 class="credits-section-title">Setup &amp; Documentation</h4>
+          <p class="credits-body">
+            Full installation instructions — including how to download Piper, add voice models,
+            and load the extension — are in the project README.
+          </p>
+          <a class="btn btn-primary credits-readme-btn"
+             href="https://github.com/n8watkins/local-tts-reader#readme"
+             target="_blank">
+            View README &amp; Setup Guide ↗
+          </a>
+        </div>
+
+        <div class="credits-section">
+          <h4 class="credits-section-title">Built On</h4>
+          <div class="credits-deps">
+            <a class="dep-card" href="https://github.com/rhasspy/piper" target="_blank">
+              <span class="dep-name">Piper TTS</span>
+              <span class="dep-desc">Fast, local neural text-to-speech by rhasspy</span>
+            </a>
+            <a class="dep-card"
+               href="https://huggingface.co/rhasspy/piper-voices/tree/main/en"
+               target="_blank">
+              <span class="dep-name">Piper Voices</span>
+              <span class="dep-desc">Free English voice models on HuggingFace</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="credits-section">
+          <h4 class="credits-section-title">License</h4>
+          <p class="credits-body">MIT — free to use, modify, and share.</p>
+        </div>
+      </section>
+
+    </div><!-- .page -->
+    <script src="options.js"></script>
+  </body>
+</html>

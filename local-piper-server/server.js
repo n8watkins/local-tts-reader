@@ -217,13 +217,20 @@ app.delete("/voices/:name", async (req, res) => {
   const onnxPath = path.join(VOICE_DIR, name);
   const jsonPath  = onnxPath + ".json";
   try {
-    // Promise.all (not allSettled) so any rm failure is caught and returned
-    // as a 500 error. allSettled always resolves, silently swallowing errors.
-    // force:true suppresses ENOENT, so missing files are still safe to delete.
-    await Promise.all([
+    // allSettled ensures both files are always attempted regardless of whether
+    // one fails, avoiding a partial delete. force:true suppresses ENOENT so a
+    // missing sidecar is never an error. We then surface any real errors (e.g.
+    // EPERM) explicitly rather than swallowing them as the old code did.
+    const results = await Promise.allSettled([
       fs.rm(onnxPath, { force: true }),
       fs.rm(jsonPath, { force: true })
     ]);
+    const errors = results
+      .filter(r => r.status === "rejected")
+      .map(r => r.reason?.message || String(r.reason));
+    if (errors.length > 0) {
+      return res.status(500).json({ error: "Delete failed: " + errors.join("; ") });
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

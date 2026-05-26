@@ -1,8 +1,8 @@
 # Local TTS Reader
 
-A Chrome extension that lets you highlight text on any webpage, right-click it, and have it read aloud — either using your browser's built-in voice or a fully local [Piper TTS](https://github.com/rhasspy/piper) model running on your machine.
+A Chrome extension that lets you highlight text on any webpage, right-click it, and have it read aloud using a fully local [Piper TTS](https://github.com/rhasspy/piper) model running on your machine — no cloud, no API keys, no data leaves your computer.
 
-No cloud APIs. No subscriptions. No data leaves your computer (in Piper mode).
+A browser TTS fallback is also built in, so it works instantly with no server setup.
 
 ---
 
@@ -13,180 +13,232 @@ local-tts-reader/
 ├── extension/              Chrome Manifest V3 extension
 │   ├── manifest.json
 │   ├── background.js       Service worker: context menu, routing
-│   ├── offscreen.html      Offscreen document (required for audio in MV3)
-│   ├── offscreen.js        Fetches Piper audio + plays it
-│   ├── popup.html          Settings popup UI
-│   ├── popup.js
-│   ├── popup.css
+│   ├── offscreen.html/.js  Hidden page that plays Piper audio (MV3 requirement)
+│   ├── popup.html/.js/.css Toolbar popup — profile switcher & quick controls
+│   ├── options.html/.js/.css Full settings page (profiles, voices, credits)
 │   └── icons/
 │
-└── local-piper-server/     Local Node.js TTS server
-    ├── server.js           Express server, calls Piper, returns WAV
+└── local-piper-server/     Local Node.js server that calls Piper
+    ├── server.js
     ├── package.json
-    ├── README.md           Detailed Piper setup instructions
     ├── piper/
-    │   ├── piper.exe       ← you download this
+    │   ├── piper.exe       ← you download this (see Step 3)
     │   └── voices/
-    │       ├── *.onnx      ← you download these
+    │       ├── *.onnx      ← you download these (see Step 4)
     │       └── *.onnx.json
-    └── output/             Temp files (auto-cleaned)
+    └── output/             Temp WAV files (auto-cleaned)
 ```
 
 ---
 
-## Quick Start
+## Setup Guide
 
-### Step 1 — Load the Chrome Extension
+### Step 1 — Clone or download this repo
 
-1. Open Chrome and go to: `chrome://extensions`
-2. Enable **Developer mode** (top right toggle)
-3. Click **Load unpacked**
-4. Select the `extension/` folder inside this project
+```bash
+git clone https://github.com/n8watkins/local-tts-reader.git
+cd local-tts-reader
+```
 
-The extension is now active. You'll see a 🔊 icon in your toolbar.
-
-### Step 2 — Test browser-native TTS (no server needed)
-
-1. Go to any webpage
-2. Highlight some text
-3. Right-click → **Read selected text**
-4. Your browser reads it aloud
-
-To stop: right-click anywhere → **Stop reading**
-
-That's the MVP. It works immediately with no setup.
+Or download the ZIP from GitHub and extract it.
 
 ---
 
-## Upgrading to Local Piper TTS
+### Step 2 — Load the Chrome extension
 
-For a fully local, higher-quality voice, follow the [Piper server setup](local-piper-server/README.md).
+1. Open Chrome and navigate to: `chrome://extensions`
+2. Enable **Developer mode** (toggle in the top-right corner)
+3. Click **Load unpacked**
+4. Select the **`extension/`** folder inside this project
 
-**Short version:**
+You'll see a 🔊 icon appear in your Chrome toolbar.
+
+> **You can stop here** and the extension will work right now using your browser's built-in voice. To get high-quality local neural TTS, continue with steps 3–6.
+
+---
+
+### Step 3 — Download Piper TTS
+
+Piper is a fast, offline text-to-speech engine. Download the Windows binary:
+
+1. Go to the [Piper releases page](https://github.com/rhasspy/piper/releases/latest)
+2. Download `piper_windows_amd64.zip` (or the appropriate build for your OS)
+3. Extract it — you'll get a folder containing `piper.exe` and some DLL files
+4. Copy **all** the extracted files into:
+   ```
+   local-piper-server/piper/
+   ```
+
+After this step your folder should look like:
+```
+local-piper-server/piper/
+├── piper.exe
+├── espeak-ng-data/     (comes with the Piper archive)
+└── ...other DLLs
+```
+
+---
+
+### Step 4 — Download a voice model
+
+Piper uses `.onnx` voice model files. Each voice has two files: a `.onnx` model and a `.onnx.json` config.
+
+1. Go to the [Piper voices on HuggingFace](https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US)
+2. Browse and find a voice you like (e.g. `en_US-ryan-high` or `en_US-amy-medium`)
+3. Download **both** files for your chosen voice:
+   - `en_US-ryan-high.onnx`
+   - `en_US-ryan-high.onnx.json`
+4. Place both files in:
+   ```
+   local-piper-server/piper/voices/
+   ```
+
+You can download multiple voices and switch between them in the extension's Settings page.
+
+---
+
+### Step 5 — Start the local server
 
 ```bash
 cd local-piper-server
-npm install
-
-# Then download piper.exe and a voice model (see README.md in that folder)
-
+npm install        # first time only
 npm start
 ```
 
-Once the server is running at `http://127.0.0.1:5050`:
+You should see:
+```
+🔊 Local Piper TTS Server
+   Running at http://127.0.0.1:5050
+```
 
-1. Click the 🔊 extension icon in Chrome
-2. Change **TTS Engine** to **Local Piper**
-3. The popup will show **Online ✓** when the server is reachable
-4. Highlight text → right-click → **Read selected text**
+The server must be running whenever you want to use local TTS. You can set it to auto-start using the included tray helper (see [Tray Integration](#tray-integration) below).
+
+---
+
+### Step 6 — Verify in Chrome
+
+1. Click the 🔊 icon in your Chrome toolbar
+2. The popup should show **Piper Online ✓** (green dot)
+3. If it shows offline, make sure `npm start` is running and check for errors
+
+---
+
+## Usage
+
+**Read text aloud:**
+1. Highlight any text on a webpage
+2. Right-click → **Read selected text**
+3. To stop: right-click anywhere → **Stop reading** (or use the popup)
+
+**Switch profiles:**
+- Click the `‹` / `›` arrows in the popup to cycle between profiles
+- Each profile stores a voice + speed + volume setting
+
+**Open Settings:**
+- Click the ⚙ gear icon in the popup
+- The full settings page opens in a new tab
+
+---
+
+## Settings Page
+
+The settings page (⚙ gear icon) has four tabs:
+
+| Tab | What you can do |
+|-----|-----------------|
+| **Profiles** | Create, edit, and delete named voice presets (up to 10). Each profile stores a voice, speed, and volume. |
+| **Voices** | Browse installed voices, test them, mark favorites (up to 5), or delete them from disk. |
+| **Settings** | Toggle the browser TTS fallback when Piper is offline. |
+| **Credits** | Piper credits and links back to this README. |
 
 ---
 
 ## Features
 
-| Feature | Browser Mode | Piper Mode |
+| Feature | Browser mode | Piper mode |
 |---------|-------------|------------|
-| No install needed | ✅ | ❌ needs server |
-| Fully local | Depends on OS | ✅ always |
-| Voice quality | OS default | ✅ Piper voices |
-| Rate control | ✅ | ✅ |
-| Pitch control | ✅ | ❌ N/A |
-| Volume control | ✅ | ✅ |
-| Long text chunking | ✅ | ✅ |
+| Works without any setup | ✅ | ❌ needs server |
+| Fully offline / no cloud | OS-dependent | ✅ always |
+| Voice quality | OS default voice | ✅ neural TTS |
+| Multiple voices | OS voices | ✅ download any Piper voice |
+| Named profiles (voice + speed + vol) | ✅ | ✅ |
+| Speed control | ✅ | ✅ |
+| Volume control (up to 2×) | ✅ | ✅ |
+| Long-text chunking | ✅ | ✅ |
 | Stop reading | ✅ | ✅ |
-| Offline fallback | — | ✅ optional |
+| Offline fallback to browser voice | — | ✅ optional |
 
 ---
 
 ## How It Works
 
 ```
-You highlight text
-   ↓
-Right-click → "Read selected text"
-   ↓
+Highlight text → right-click → "Read selected text"
+       ↓
 background.js (service worker)
-   ↓                     ↓
-Browser mode          Piper mode
-   ↓                     ↓
-chrome.tts.speak()    → offscreen.js
-                          ↓
-                      POST /tts → local-piper-server/server.js
-                          ↓
-                      Piper.exe generates WAV
-                          ↓
-                      WAV returned → Audio() plays it
+       ↓                        ↓
+ Piper server online       Server offline + fallback on
+       ↓                        ↓
+ offscreen.js              chrome.tts.speak()
+       ↓
+ POST /tts → local-piper-server
+       ↓
+ Piper.exe → WAV audio
+       ↓
+ Web Audio API plays it
 ```
 
-Chrome Manifest V3 service workers can't use the DOM or play audio, so Piper audio playback goes through an **offscreen document** — a hidden page that can use `new Audio()` normally.
+Chrome Manifest V3 service workers cannot play audio directly, so Piper audio playback is routed through an **offscreen document** — a hidden page that can use `new Audio()` normally.
 
 ---
 
-## Popup Settings
+## Tray Integration
 
-Click the 🔊 icon to open the settings popup:
-
-- **TTS Engine** — switch between Browser Voice and Local Piper
-- **Rate** — playback speed (0.5× to 2.5×)
-- **Pitch** — voice pitch, browser mode only (0.5× to 2.0×)
-- **Volume** — output volume (0–100%)
-- **Piper Server** — shows Online/Offline status
-- **Fallback** — if Piper is offline, automatically use browser voice
-- **Test Voice** — play a test phrase with current settings
-- **Stop Reading** — stop any active playback
-
-Settings are saved automatically via `chrome.storage.local`.
-
----
-
-## Long Text
-
-Long selections are automatically split into sentence chunks (~350 chars each) and played sequentially. This means:
-
-- Playback starts quickly (first chunk)
-- Remaining chunks are fetched and queued
-- "Stop reading" cancels the entire queue
+If you use the [n8scripts tray](https://github.com/n8watkins/local-tts-reader) on Windows, the Piper server can be auto-started when you log in and its status is shown in the system tray.
 
 ---
 
 ## Troubleshooting
 
 **Right-click menu doesn't appear**  
-→ Make sure the extension is loaded and enabled in `chrome://extensions`
+→ Make sure the extension is loaded and enabled at `chrome://extensions`.
+
+**Popup shows "Piper Offline"**  
+→ Run `npm start` inside `local-piper-server/`. Check that port 5050 is not blocked.
+
+**No audio / silent playback**  
+→ Open Chrome DevTools (F12 → Console) and look for errors. Common causes: no voice model downloaded, wrong voice filename, Piper executable not found.
+
+**Audio sounds wrong or cuts off**  
+→ Long text is split into sentence chunks and played sequentially. If one chunk errors, playback stops. Check the console for details.
 
 **Browser voice sounds robotic**  
-→ This is your OS's TTS engine. Try the Piper server for better quality.
-
-**Piper status shows "Offline"**  
-→ Run `npm start` inside `local-piper-server/`. The server must be running.
-
-**No audio plays in Piper mode**  
-→ Check the browser console (F12 → Console) for errors. Common issues: server not running, missing voice model, Piper not found.
-
-**Audio is cut off**  
-→ The text was split into chunks. If a chunk failed, playback moves to the next. Check the console for errors.
+→ That's your OS's built-in TTS. The Piper server provides much better quality.
 
 ---
 
 ## Roadmap
 
-- [x] Browser-native TTS MVP
-- [x] Stop reading
-- [x] Local Piper server integration
-- [x] Offscreen document audio playback
-- [x] Popup settings UI
-- [x] Long-text chunking
-- [x] Offline fallback to browser voice
-- [ ] Voice selector (multiple Piper voices)
-- [ ] Windows tray helper (auto-start server)
+- [x] Browser-native TTS (no setup required)
+- [x] Local Piper TTS server integration
+- [x] Offscreen document audio playback (MV3 compliant)
+- [x] Long-text sentence chunking
+- [x] Offline browser TTS fallback
+- [x] Named profiles (voice + speed + volume presets)
+- [x] Settings page (voices, profiles, credits)
+- [x] Multiple voice management (install, test, favorite, delete)
+- [x] Windows tray helper (auto-start server)
 - [ ] Keyboard shortcut to trigger reading
-- [ ] Reading progress indicator
-- [ ] Pause/resume support
+- [ ] Reading progress indicator in popup
+- [ ] Pause / resume support
+- [ ] macOS/Linux Piper server launch script
 
 ---
 
 ## Credits
 
-- [Piper TTS](https://github.com/rhasspy/piper) — fast, local neural TTS
-- [Piper voices on Hugging Face](https://huggingface.co/rhasspy/piper-voices)
-- Chrome Extensions Manifest V3 Offscreen Documents API
+- [Piper TTS](https://github.com/rhasspy/piper) — fast, offline neural TTS by rhasspy  
+- [Piper voices on HuggingFace](https://huggingface.co/rhasspy/piper-voices) — free English voice models  
+- Chrome Offscreen Documents API (MV3)
+
+MIT License — free to use, fork, and share.

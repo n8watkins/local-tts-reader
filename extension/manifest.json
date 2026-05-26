@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Local TTS Reader",
-  "version": "0.8.0",
-  "description": "Highlight text, right-click, and hear it read aloud using browser voice or local Piper TTS.",
+  "version": "0.9.0",
+  "description": "Highlight text, right-click, and hear it read aloud using local Piper TTS — no cloud, no API keys.",
   "permissions": [
     "contextMenus",
     "tts",
@@ -19,9 +19,13 @@
     "default_popup": "popup.html",
     "default_title": "Local TTS Reader"
   },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
     "128": "icons/icon128.png"
   }
 }
