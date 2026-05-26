@@ -1,6 +1,6 @@
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PIPER_BASE_URL = "http://127.0.0.1:5050";
-const MAX_PROFILES   = 10;
+const MAX_PROFILES   = 3;
 const MAX_FAVORITES  = 5;
 
 // ─── Icons (Lucide SVG, inlined) ──────────────────────────────────────────────

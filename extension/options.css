@@ -109,6 +109,14 @@ body {
   color: #6c7086;
 }
 
+.panel-blurb {
+  font-size: 13px;
+  color: #a6adc8;
+  line-height: 1.6;
+  margin-bottom: 18px;
+}
+.panel-blurb strong { color: #cdd6f4; }
+
 /* ─── Buttons ────────────────────────────────────────────────────────────────── */
 .btn {
   padding: 8px 16px;
