@@ -32,7 +32,10 @@ document.addEventListener("keydown", (e) => {
   const combo = comboFromEvent(e);
   if (combo === activeShortcuts.read) {
     e.preventDefault();
-    chrome.runtime.sendMessage({ type: "keyboard-read" });
+    // Read the selection right here — content scripts have full page access,
+    // so we never need scripting/executeScript in the background.
+    const text = window.getSelection()?.toString().trim() || "";
+    chrome.runtime.sendMessage({ type: "keyboard-read", text });
   } else if (combo === activeShortcuts.pause) {
     e.preventDefault();
     chrome.runtime.sendMessage({ type: "keyboard-pause" });

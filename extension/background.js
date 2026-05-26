@@ -82,12 +82,19 @@ async function ensureOffscreenDocument() {
 // ─── Browser TTS ─────────────────────────────────────────────────────────────
 function speakWithBrowser(text, settings) {
   chrome.tts.stop();
+  _isPlayingPiper = true;   // reuse the playing flag so popup + keyboard toggle work
+  _isPausedPiper  = false;
   chrome.tts.speak(text, {
     rate:   settings.rate   ?? 1.0,
     pitch:  1.0,
     volume: Math.min(1, settings.volume ?? 1.0), // browser TTS capped at 1
     enqueue: false,
-    onEvent: (e) => { if (e.type === "error") console.error("tts error:", e.errorMessage); }
+    onEvent: (e) => {
+      if (e.type === "end" || e.type === "interrupted" || e.type === "cancelled") {
+        _isPlayingPiper = false;
+      }
+      if (e.type === "error") console.error("tts error:", e.errorMessage);
+    }
   });
 }
 
@@ -120,7 +127,14 @@ async function speakWithPiper(text, settings) {
 
   _isPlayingPiper = true;
   _isPausedPiper  = false;
-  await ensureOffscreenDocument();
+  try {
+    await ensureOffscreenDocument();
+  } catch (err) {
+    // Unexpected offscreen creation error — reset flag so the popup/shortcut
+    // don't get stuck in "Playing" state forever.
+    _isPlayingPiper = false;
+    throw err;
+  }
   chrome.runtime.sendMessage({ type: "stop-audio" }).catch(() => {});
   chrome.runtime.sendMessage({
     type:    "speak-text",
@@ -129,7 +143,10 @@ async function speakWithPiper(text, settings) {
     rate:    settings.rate   ?? 1.0,
     volume:  settings.volume ?? 1.0,
     voice:   settings.voice  || ""
-  }).catch((err) => console.error("speak-text delivery failed:", err));
+  }).catch((err) => {
+    console.error("speak-text delivery failed:", err);
+    _isPlayingPiper = false; // delivery failed — no playback-ended will ever arrive
+  });
 }
 
 // ─── Stop All ────────────────────────────────────────────────────────────────
@@ -240,19 +257,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   // Keyboard shortcut: Alt+Shift+R — read/stop toggle
+  // The content script passes the selected text directly — no executeScript needed.
   if (message.type === "keyboard-read") {
     if (_isPlayingPiper) {
       stopAll();
     } else {
+      const text = message.text || "";
+      if (!text) return;
       (async () => {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab?.id) return;
-        const [result] = await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          func:   () => window.getSelection()?.toString().trim() || ""
-        });
-        const text = result?.result;
-        if (!text) return;
         const { profiles = [], activeId = "" } =
           await chrome.storage.local.get(["profiles", "activeId"]);
         const profile = profiles.find(p => p.id === activeId) || profiles[0];

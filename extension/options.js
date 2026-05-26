@@ -60,8 +60,10 @@ function activeProfile() {
 }
 
 // ─── Persist ──────────────────────────────────────────────────────────────────
+// Note: shortcuts are NOT included here — they are written directly in startListening()
+// so that a save() call during init() loading never overwrites user-customized bindings.
 function save() {
-  chrome.storage.local.set({ profiles, activeId, favorites, deletedVoices, favsOnly, fallback, shortcuts });
+  chrome.storage.local.set({ profiles, activeId, favorites, deletedVoices, favsOnly, fallback });
 }
 
 // ─── Custom Alert Modal ───────────────────────────────────────────────────────
@@ -742,6 +744,7 @@ function renderShortcuts() {
 }
 
 function startListening(btn, action) {
+  if (btn.classList.contains("listening")) return; // already listening — ignore re-click
   btn.textContent = "Press keys…";
   btn.classList.add("listening");
 

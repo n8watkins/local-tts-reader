@@ -203,6 +203,16 @@ async function playQueue(chunks, piperUrl, volume, rate, voice, generation) {
 
       if (!live()) break;
 
+      // Between-chunk pause: wait until resume-audio clears the flag
+      if (isPaused) {
+        await new Promise(resolve => {
+          const check = setInterval(() => {
+            if (!isPaused || !live()) { clearInterval(check); resolve(); }
+          }, 100);
+        });
+        if (!live()) break;
+      }
+
       await playBlob(blob, volume, rate);
 
     } catch (err) {
@@ -234,17 +244,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === "pause-audio") {
-    if (currentAudio && !currentAudio.paused) {
-      currentAudio.pause();
-      isPaused = true;
+    if (isPlaying) {
+      isPaused = true;                             // set regardless of whether a chunk is mid-play
+      if (currentAudio && !currentAudio.paused) {
+        currentAudio.pause();
+      }
     }
     return;
   }
 
   if (message.type === "resume-audio") {
-    if (currentAudio && currentAudio.paused && isPaused) {
+    if (isPaused) {
       isPaused = false;
-      currentAudio.play().catch(() => {});
+      if (currentAudio && currentAudio.paused) {
+        currentAudio.play().catch(() => {});
+      }
+      // If currentAudio is null the queue is between chunks; it will check isPaused
+      // before calling playBlob and resume naturally.
     }
     return;
   }
