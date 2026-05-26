@@ -14,6 +14,7 @@
 const express = require("express");
 const cors    = require("cors");
 const fs      = require("fs/promises");
+const { createReadStream } = require("fs");
 const path    = require("path");
 const crypto  = require("crypto");
 const { spawn } = require("child_process");
@@ -150,23 +151,26 @@ app.post("/tts", async (req, res) => {
     await runPiper({ text: cleanText, outputPath, voiceModel: safeVoice });
 
     // Stream the WAV back
+    // S2 fix: replaced sendFile (broken on Windows with root:"/") with a plain
+    // createReadStream pipe — works on all platforms without path quirks.
     res.setHeader("Content-Type", "audio/wav");
     res.setHeader("Cache-Control", "no-store");
 
-    // C4 fix: accept the err parameter — sendFile calls cb(err) on failure.
-    // If headers haven't been sent yet, send an error response; otherwise log
-    // the truncation (can't change status after streaming has started).
-    res.sendFile(outputPath, { root: "/" }, async (err) => {
-      if (err) {
-        console.error("[/tts] sendFile error:", err.message);
-        if (!res.headersSent) {
-          res.status(500).json({ error: "Failed to stream audio file." });
-        }
-        // If headers were already sent the stream was partially written;
-        // nothing to do except clean up and let the client handle the truncation.
+    const stream = createReadStream(outputPath);
+
+    stream.on("error", async (err) => {
+      console.error("[/tts] stream error:", err.message);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to stream audio file." });
       }
       await cleanup();
     });
+
+    stream.on("close", async () => {
+      await cleanup();
+    });
+
+    stream.pipe(res);
 
   } catch (err) {
     await cleanup();
