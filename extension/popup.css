@@ -262,5 +262,48 @@ body {
 }
 .footer-hint em { color: #a6adc8; font-style: normal; font-weight: 600; }
 
+/* ─── Inline New-Profile Form ────────────────────────────────────────────────── */
+.new-profile-form {
+  background: #313244;
+  border: 1px solid #45475a;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.new-profile-header {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #a6adc8;
+}
+
+.new-profile-input {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+.new-profile-input:focus { border-color: #cba6f7; }
+.new-profile-input::placeholder { color: #6c7086; }
+
+.new-profile-actions { display: flex; gap: 8px; }
+
+.new-profile-save   { background: #cba6f7; color: #1e1e2e; padding: 8px 0; }
+.new-profile-save:hover { opacity: 0.88; }
+.new-profile-cancel { background: #1e1e2e; color: #a6adc8; border: 1px solid #45475a; padding: 8px 0; }
+.new-profile-cancel:hover { background: #45475a; }
+
 /* ─── Utility ────────────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }

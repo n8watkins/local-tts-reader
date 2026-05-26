@@ -24,7 +24,7 @@
         <button class="tab active" data-tab="profiles" role="tab">Profiles</button>
         <button class="tab"        data-tab="voices"   role="tab">Voices</button>
         <button class="tab"        data-tab="settings" role="tab">Settings</button>
-        <button class="tab"        data-tab="credits"  role="tab">Credits</button>
+        <button class="tab"        data-tab="credits"  role="tab">About</button>
       </nav>
 
       <!-- ── Profiles Tab ─────────────────────────────────────────────────── -->
@@ -35,7 +35,7 @@
           <button class="btn btn-primary" id="new-profile-btn">＋ New Profile</button>
         </div>
 
-        <!-- Inline create form (hidden by default) -->
+        <!-- Inline create form -->
         <div class="create-form hidden" id="create-profile-form">
           <h3 class="form-title">New Profile</h3>
           <div class="form-grid">
@@ -65,9 +65,7 @@
           </div>
         </div>
 
-        <div class="profile-list" id="profile-list">
-          <!-- Rendered by JS -->
-        </div>
+        <div class="profile-list" id="profile-list"></div>
       </section>
 
       <!-- ── Voices Tab ────────────────────────────────────────────────────── -->
@@ -84,9 +82,7 @@
           ⚠ Piper server is offline — start the server to manage voices.
         </div>
 
-        <div class="voice-grid" id="voice-grid">
-          <!-- Rendered by JS -->
-        </div>
+        <div class="voice-grid" id="voice-grid"></div>
 
         <div class="voices-footer">
           <a class="link-external"
@@ -96,7 +92,6 @@
           </a>
         </div>
 
-        <!-- Deleted voice log -->
         <details class="deleted-section" id="deleted-section">
           <summary class="deleted-summary">
             <span>Deleted voices</span>
@@ -136,75 +131,60 @@
         </div>
       </section>
 
-      <!-- ── Credits Tab ───────────────────────────────────────────────────── -->
+      <!-- ── About / Credits Tab ───────────────────────────────────────────── -->
       <section id="tab-credits" class="tab-panel hidden" role="tabpanel">
-        <h2 class="panel-heading">How It Works</h2>
 
-        <div class="credits-block">
+        <!-- Identity block — always at top -->
+        <div class="credits-identity">
           <div class="credits-logo">🔊</div>
           <h3 class="credits-title">Local TTS Reader</h3>
-          <p class="credits-desc">
+          <p class="credits-tagline">
             A Chrome extension that reads any selected text aloud using a fully local
             <a class="link" href="https://github.com/rhasspy/piper" target="_blank">Piper TTS</a>
             server on your machine — no cloud, no API keys, nothing leaves your computer.
           </p>
         </div>
 
+        <!-- How It Works -->
         <div class="credits-section">
-          <h4 class="credits-section-title">The Flow</h4>
+          <h4 class="credits-section-title">How It Works</h4>
           <ol class="how-it-works-list">
             <li>
               <span class="flow-step">1</span>
-              <div>
-                <strong>Highlight text</strong> on any webpage and right-click it.
-                Choose <em>Read selected text</em> from the context menu.
-              </div>
+              <div><strong>Highlight text</strong> on any webpage and right-click → <em>Read selected text</em>.</div>
             </li>
             <li>
               <span class="flow-step">2</span>
-              <div>
-                The extension's <strong>background service worker</strong> receives the text
-                and checks if the local Piper server is reachable at
-                <code>http://127.0.0.1:5050</code>.
-              </div>
+              <div>The extension's <strong>background service worker</strong> checks if the local Piper server is reachable at <code>http://127.0.0.1:5050</code>.</div>
             </li>
             <li>
               <span class="flow-step">3</span>
-              <div>
-                If Piper is online, the text is split into sentence chunks and sent one at a time
-                to the <strong>local Node.js server</strong>, which calls
-                <code>piper.exe</code> and returns a WAV audio file.
-              </div>
+              <div>The text is split into sentence chunks and sent to the <strong>local Node.js server</strong>, which calls <code>piper.exe</code> and streams back WAV audio.</div>
             </li>
             <li>
               <span class="flow-step">4</span>
-              <div>
-                An <strong>offscreen document</strong> (a hidden browser page) receives
-                each WAV chunk and plays it through the Web Audio API — Chrome's Manifest V3
-                service workers can't play audio directly, so this workaround is required.
-              </div>
+              <div>An <strong>offscreen document</strong> receives each chunk and plays it through the Web Audio API — Chrome's Manifest V3 service workers can't play audio directly.</div>
             </li>
             <li>
               <span class="flow-step">5</span>
-              <div>
-                If Piper is offline and <em>Browser TTS fallback</em> is enabled (see Settings),
-                the browser's built-in voice is used instead.
-              </div>
+              <div>If Piper is offline and <em>Browser TTS fallback</em> is on (Settings), the browser's built-in voice is used instead.</div>
             </li>
           </ol>
         </div>
 
+        <!-- Profiles explanation -->
         <div class="credits-section">
           <h4 class="credits-section-title">Profiles</h4>
           <p class="credits-body">
-            Each <strong>profile</strong> is a named preset that stores a voice, speed, and volume.
-            Create multiple profiles — for example, one fast voice for articles and a slower one for
+            Each <strong>profile</strong> is a named preset storing a voice, speed, and volume.
+            Create multiple profiles — for example, a fast voice for articles and a slower one for
             technical content — and switch between them in the popup with the arrow buttons.
           </p>
         </div>
 
+        <!-- Setup -->
         <div class="credits-section">
-          <h4 class="credits-section-title">Setup &amp; Documentation</h4>
+          <h4 class="credits-section-title">Setup</h4>
           <p class="credits-body">
             Full installation instructions — including how to download Piper, add voice models,
             and load the extension — are in the project README on GitHub.
@@ -216,8 +196,9 @@
           </a>
         </div>
 
+        <!-- Credits -->
         <div class="credits-section">
-          <h4 class="credits-section-title">Built On</h4>
+          <h4 class="credits-section-title">Credits</h4>
           <div class="credits-deps">
             <a class="dep-card" href="https://github.com/rhasspy/piper" target="_blank">
               <span class="dep-name">Piper TTS</span>
@@ -230,15 +211,24 @@
               <span class="dep-desc">Free English voice models on HuggingFace</span>
             </a>
           </div>
+          <p class="credits-license">MIT License — free to use, modify, and share.</p>
         </div>
 
-        <div class="credits-section">
-          <h4 class="credits-section-title">License</h4>
-          <p class="credits-body">MIT — free to use, modify, and share.</p>
-        </div>
       </section>
 
     </div><!-- .page -->
+
+    <!-- Custom confirm modal (replaces browser confirm()) -->
+    <div class="modal-overlay hidden" id="confirm-modal">
+      <div class="modal-box" role="dialog" aria-modal="true">
+        <p class="modal-msg" id="modal-msg"></p>
+        <div class="modal-actions">
+          <button class="btn btn-danger" id="modal-confirm-btn">Delete</button>
+          <button class="btn btn-ghost"  id="modal-cancel-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <script src="options.js"></script>
   </body>
 </html>

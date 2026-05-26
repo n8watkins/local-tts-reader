@@ -2,20 +2,24 @@
 const PIPER_BASE_URL = "http://127.0.0.1:5050";
 
 // ─── DOM References ───────────────────────────────────────────────────────────
-const profileNameEl  = document.getElementById("profile-name");
-const profileVoiceEl = document.getElementById("profile-voice");
-const prevBtn        = document.getElementById("prev-profile-btn");
-const nextBtn        = document.getElementById("next-profile-btn");
-const addProfileBtn  = document.getElementById("add-profile-btn");
-const rateSlider     = document.getElementById("rate-slider");
-const rateValue      = document.getElementById("rate-value");
-const volumeSlider   = document.getElementById("volume-slider");
-const volumeValue    = document.getElementById("volume-value");
-const testBtn        = document.getElementById("test-btn");
-const stopBtn        = document.getElementById("stop-btn");
-const testError      = document.getElementById("test-error");
-const statusDot      = document.getElementById("status-dot");
-const settingsBtn    = document.getElementById("settings-btn");
+const profileNameEl    = document.getElementById("profile-name");
+const profileVoiceEl   = document.getElementById("profile-voice");
+const prevBtn          = document.getElementById("prev-profile-btn");
+const nextBtn          = document.getElementById("next-profile-btn");
+const addProfileBtn    = document.getElementById("add-profile-btn");
+const rateSlider       = document.getElementById("rate-slider");
+const rateValue        = document.getElementById("rate-value");
+const volumeSlider     = document.getElementById("volume-slider");
+const volumeValue      = document.getElementById("volume-value");
+const testBtn          = document.getElementById("test-btn");
+const stopBtn          = document.getElementById("stop-btn");
+const testError        = document.getElementById("test-error");
+const statusDot        = document.getElementById("status-dot");
+const settingsBtn      = document.getElementById("settings-btn");
+const newProfileForm   = document.getElementById("new-profile-form");
+const newProfileInput  = document.getElementById("new-profile-name");
+const newProfileSave   = document.getElementById("new-profile-save");
+const newProfileCancel = document.getElementById("new-profile-cancel");
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let profiles  = [];
@@ -93,15 +97,25 @@ nextBtn.addEventListener("click", () => {
   chrome.storage.local.set({ activeId: profiles[activeIdx].id });
 });
 
-// ─── Quick Add Profile ────────────────────────────────────────────────────────
+// ─── Quick Add Profile (inline form) ─────────────────────────────────────────
 addProfileBtn.addEventListener("click", () => {
-  const name = prompt("New profile name:");
-  if (!name?.trim()) return;
+  newProfileForm.classList.remove("hidden");
+  newProfileInput.focus();
+});
+
+newProfileCancel.addEventListener("click", () => {
+  newProfileForm.classList.add("hidden");
+  newProfileInput.value = "";
+});
+
+function saveNewProfile() {
+  const name = newProfileInput.value.trim();
+  if (!name) { newProfileInput.focus(); return; }
 
   const base = activeProfile() ?? { voice: "", rate: 1.0, volume: 1.0 };
   const newP = {
     id:     crypto.randomUUID(),
-    name:   name.trim(),
+    name,
     voice:  base.voice,
     rate:   base.rate,
     volume: base.volume
@@ -110,6 +124,16 @@ addProfileBtn.addEventListener("click", () => {
   activeIdx = profiles.length - 1;
   chrome.storage.local.set({ profiles, activeId: newP.id });
   updateProfileUI();
+
+  newProfileForm.classList.add("hidden");
+  newProfileInput.value = "";
+}
+
+newProfileSave.addEventListener("click", saveNewProfile);
+
+newProfileInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter")  saveNewProfile();
+  if (e.key === "Escape") newProfileCancel.click();
 });
 
 // ─── Sliders ──────────────────────────────────────────────────────────────────
@@ -195,9 +219,16 @@ async function init() {
 
   // Bootstrap default profile
   if (stored.profiles.length === 0) {
-    stored.profiles = [{ id: "default", name: "Default", voice: "", rate: 1.0, volume: 1.0 }];
+    stored.profiles = [{ id: "default", name: "Profile 1", voice: "", rate: 1.0, volume: 1.0 }];
     stored.activeId = "default";
     await chrome.storage.local.set({ profiles: stored.profiles, activeId: stored.activeId });
+  }
+
+  // Migrate: rename auto-generated "Default" profile to "Profile 1"
+  const defP = stored.profiles.find(p => p.id === "default" && p.name === "Default");
+  if (defP) {
+    defP.name = "Profile 1";
+    await chrome.storage.local.set({ profiles: stored.profiles });
   }
 
   profiles  = stored.profiles;

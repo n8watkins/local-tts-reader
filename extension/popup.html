@@ -30,6 +30,17 @@
         <button class="btn-add-profile" id="add-profile-btn" title="New profile">＋</button>
       </div>
 
+      <!-- Inline new-profile form (replaces prompt()) -->
+      <div class="new-profile-form hidden" id="new-profile-form">
+        <span class="new-profile-header">New Profile</span>
+        <input class="new-profile-input" type="text" id="new-profile-name"
+               placeholder="e.g. Audiobooks" maxlength="40" />
+        <div class="new-profile-actions">
+          <button class="btn new-profile-save" id="new-profile-save">Save</button>
+          <button class="btn new-profile-cancel" id="new-profile-cancel">Cancel</button>
+        </div>
+      </div>
+
       <!-- Compact sliders -->
       <div class="sliders">
         <div class="slider-row">

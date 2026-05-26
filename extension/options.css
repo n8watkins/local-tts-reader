@@ -232,39 +232,72 @@ body {
 }
 
 .profile-card-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: #cdd6f4;
-  flex: 1;
-  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.active-badge {
-  font-size: 10px;
-  font-weight: 700;
-  background: #cba6f7;
-  color: #1e1e2e;
-  padding: 2px 7px;
-  border-radius: 8px;
-  margin-left: 8px;
-  vertical-align: middle;
-  letter-spacing: 0.04em;
-}
-
 .profile-card-meta {
-  font-size: 13px;
+  font-size: 12px;
   color: #a6adc8;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex-shrink: 0;
-  max-width: 220px;
 }
 
-.profile-card-btns { display: flex; gap: 6px; flex-shrink: 0; }
+.profile-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.profile-card-btns { display: flex; gap: 4px; flex-shrink: 0; align-items: center; }
+
+/* ─── Profile Status Button ──────────────────────────────────────────────────── */
+.profile-status-btn {
+  width: 88px;
+  flex-shrink: 0;
+  text-align: center;
+  padding: 5px 0;
+  font-size: 12px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.profile-status-btn.is-active-state {
+  background: transparent;
+  border: 1px solid #cba6f7;
+  color: #cba6f7;
+  cursor: default;
+}
+.profile-status-btn.is-active-state:hover,
+.profile-status-btn.is-active-state:active { opacity: 1; transform: none; background: transparent; }
+
+/* ─── Icon Buttons ───────────────────────────────────────────────────────────── */
+.btn-icon {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #6c7086;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  outline: none;
+  flex-shrink: 0;
+  padding: 0;
+}
+.btn-icon:hover { background: #313244; border-color: #45475a; color: #cdd6f4; }
+.btn-icon.btn-icon-delete:hover { color: #f38ba8; background: #3a1e1e; border-color: #f38ba8; }
+.btn-icon:disabled { opacity: 0.3; cursor: default; }
+.btn-icon:disabled:hover { background: none; border-color: transparent; color: #6c7086; }
 
 /* Inline edit form inside profile card */
 .profile-edit-form {
@@ -507,7 +540,7 @@ body {
 }
 
 /* ─── Credits Tab ────────────────────────────────────────────────────────────── */
-.credits-block {
+.credits-identity {
   text-align: center;
   padding: 28px 0 24px;
   border-bottom: 1px solid #313244;
@@ -515,9 +548,9 @@ body {
 }
 .credits-logo  { font-size: 40px; margin-bottom: 10px; }
 .credits-title { font-size: 20px; font-weight: 700; color: #cba6f7; margin-bottom: 10px; }
-.credits-desc  { font-size: 13px; color: #a6adc8; max-width: 480px; margin: 0 auto; line-height: 1.6; }
-.credits-desc .link { color: #89dceb; text-decoration: none; }
-.credits-desc .link:hover { text-decoration: underline; }
+.credits-tagline { font-size: 13px; color: #a6adc8; max-width: 480px; margin: 0 auto; line-height: 1.6; }
+.link { color: #89dceb; text-decoration: none; }
+.link:hover { text-decoration: underline; }
 
 .credits-section { margin-bottom: 26px; }
 .credits-section-title {
@@ -599,6 +632,47 @@ body {
 .dep-card:hover { border-color: #cba6f7; }
 .dep-name { font-size: 13px; font-weight: 700; color: #cba6f7; }
 .dep-desc { font-size: 12px; color: #6c7086; }
+
+.credits-license {
+  font-size: 12px;
+  color: #6c7086;
+  margin-top: 12px;
+}
+
+/* ─── Modal ──────────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-box {
+  background: #1e1e2e;
+  border: 1px solid #45475a;
+  border-radius: 12px;
+  padding: 24px 28px;
+  max-width: 360px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.modal-msg {
+  font-size: 14px;
+  color: #cdd6f4;
+  line-height: 1.6;
+  margin-bottom: 20px;
+  white-space: pre-line;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
 
 /* ─── Utility ────────────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }

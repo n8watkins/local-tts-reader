@@ -3,6 +3,10 @@ const PIPER_BASE_URL = "http://127.0.0.1:5050";
 const MAX_PROFILES   = 10;
 const MAX_FAVORITES  = 5;
 
+// ─── Icons (Lucide SVG, inlined) ──────────────────────────────────────────────
+const ICON_PENCIL = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>`;
+const ICON_TRASH  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
+
 // ─── State ────────────────────────────────────────────────────────────────────
 let profiles      = [];
 let activeId      = "";
@@ -41,6 +45,30 @@ function activeProfile() {
 // ─── Persist ──────────────────────────────────────────────────────────────────
 function save() {
   chrome.storage.local.set({ profiles, activeId, favorites, deletedVoices, favsOnly, fallback });
+}
+
+// ─── Custom Confirm Modal ─────────────────────────────────────────────────────
+function customConfirm(message) {
+  return new Promise(resolve => {
+    const overlay    = document.getElementById("confirm-modal");
+    const msgEl      = document.getElementById("modal-msg");
+    const confirmBtn = document.getElementById("modal-confirm-btn");
+    const cancelBtn  = document.getElementById("modal-cancel-btn");
+
+    msgEl.textContent = message;
+    overlay.classList.remove("hidden");
+
+    function cleanup() {
+      overlay.classList.add("hidden");
+      confirmBtn.removeEventListener("click", onConfirm);
+      cancelBtn.removeEventListener("click", onCancel);
+    }
+    function onConfirm() { cleanup(); resolve(true); }
+    function onCancel()  { cleanup(); resolve(false); }
+
+    confirmBtn.addEventListener("click", onConfirm);
+    cancelBtn.addEventListener("click", onCancel);
+  });
 }
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
@@ -226,7 +254,10 @@ function testVoice(filename, btn) {
 
 // ─── Voices — Delete ──────────────────────────────────────────────────────────
 async function deleteVoice(filename, cardEl) {
-  if (!confirm(`Delete "${formatVoiceName(filename)}"?\nThis removes the voice file from disk and cannot be undone.`)) return;
+  const confirmed = await customConfirm(
+    `Delete "${formatVoiceName(filename)}"?\nThis removes the voice file from disk and cannot be undone.`
+  );
+  if (!confirmed) return;
 
   try {
     const res = await fetch(`${PIPER_BASE_URL}/voices/${encodeURIComponent(filename)}`, { method: "DELETE" });
@@ -328,53 +359,58 @@ function buildProfileCard(profile) {
   const header = document.createElement("div");
   header.className = "profile-card-header";
 
+  // Status button — LEFT side, fixed width, always present
+  const statusBtn = document.createElement("button");
+  statusBtn.className = "btn btn-sm profile-status-btn" +
+    (isActive ? " is-active-state" : " btn-ghost");
+  statusBtn.textContent = isActive ? "Active" : "Set Active";
+  statusBtn.disabled = isActive;
+  if (!isActive) {
+    statusBtn.addEventListener("click", () => {
+      activeId = profile.id;
+      save();
+      renderProfiles();
+    });
+  }
+
+  // Info column: name + meta stacked
+  const info = document.createElement("div");
+  info.className = "profile-card-info";
+
   const nameEl = document.createElement("span");
   nameEl.className = "profile-card-name";
   nameEl.textContent = profile.name;
-  if (isActive) {
-    const badge = document.createElement("span");
-    badge.className = "active-badge";
-    badge.textContent = "Active";
-    nameEl.appendChild(badge);
-  }
 
   const meta = document.createElement("span");
   meta.className = "profile-card-meta";
   const voiceLabel = formatVoiceName(profile.voice);
   meta.textContent = `${voiceLabel}  ·  ${fmt(profile.rate)}×  ·  vol ${fmt(profile.volume)}`;
 
+  info.appendChild(nameEl);
+  info.appendChild(meta);
+
+  // Icon buttons — RIGHT side
   const btns = document.createElement("div");
   btns.className = "profile-card-btns";
 
-  if (!isActive) {
-    const activateBtn = document.createElement("button");
-    activateBtn.className = "btn btn-ghost btn-sm";
-    activateBtn.textContent = "Set Active";
-    activateBtn.addEventListener("click", () => {
-      activeId = profile.id;
-      save();
-      renderProfiles();
-    });
-    btns.appendChild(activateBtn);
-  }
-
   const editBtn = document.createElement("button");
-  editBtn.className = "btn btn-ghost btn-sm";
-  editBtn.textContent = "Edit";
+  editBtn.className = "btn-icon btn-icon-edit";
+  editBtn.innerHTML = ICON_PENCIL;
+  editBtn.title = "Edit profile";
   editBtn.addEventListener("click", () => toggleEditForm(profile.id, card));
 
   const delBtn = document.createElement("button");
-  delBtn.className = "btn btn-danger btn-sm";
-  delBtn.textContent = "Delete";
+  delBtn.className = "btn-icon btn-icon-delete";
+  delBtn.innerHTML = ICON_TRASH;
   delBtn.disabled = profiles.length <= 1;
-  delBtn.title = profiles.length <= 1 ? "Can't delete the only profile" : "";
+  delBtn.title = profiles.length <= 1 ? "Can't delete the only profile" : "Delete profile";
   delBtn.addEventListener("click", () => deleteProfile(profile.id));
 
   btns.appendChild(editBtn);
   btns.appendChild(delBtn);
 
-  header.appendChild(nameEl);
-  header.appendChild(meta);
+  header.appendChild(statusBtn);
+  header.appendChild(info);
   header.appendChild(btns);
 
   // ── Edit form (hidden) ──
@@ -488,11 +524,12 @@ function toggleEditForm(profileId, card) {
   form.classList.toggle("hidden");
 }
 
-function deleteProfile(profileId) {
-  if (profiles.length <= 1) { alert("Can't delete the only profile."); return; }
+async function deleteProfile(profileId) {
+  if (profiles.length <= 1) return;  // button is disabled; guard anyway
   const p = profiles.find(x => x.id === profileId);
   if (!p) return;
-  if (!confirm(`Delete profile "${p.name}"?`)) return;
+  const confirmed = await customConfirm(`Delete profile "${p.name}"?`);
+  if (!confirmed) return;
   profiles = profiles.filter(x => x.id !== profileId);
   if (activeId === profileId) activeId = profiles[0].id;
   save();
@@ -622,9 +659,13 @@ async function init() {
   });
 
   if (stored.profiles.length === 0) {
-    stored.profiles = [{ id: "default", name: "Default", voice: "", rate: 1.0, volume: 1.0 }];
+    stored.profiles = [{ id: "default", name: "Profile 1", voice: "", rate: 1.0, volume: 1.0 }];
     stored.activeId = "default";
   }
+
+  // Migrate: rename auto-generated "Default" profile to "Profile 1"
+  const defP = stored.profiles.find(p => p.id === "default" && p.name === "Default");
+  if (defP) defP.name = "Profile 1";
 
   profiles      = stored.profiles;
   activeId      = stored.activeId || profiles[0].id;
