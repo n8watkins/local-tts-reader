@@ -268,6 +268,58 @@ body {
   margin-top: -2px; /* tuck closer to the buttons */
 }
 
+/* ─── Voice Row ─────────────────────────────────────────────────────────────── */
+.voice-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.voice-row .select {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-icon {
+  flex-shrink: 0;
+  background: #313244;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #cdd6f4;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  outline: none;
+}
+
+.btn-icon:hover {
+  background: #45475a;
+}
+
+.btn-icon.active {
+  color: #f9e2af;
+  border-color: #f9e2af;
+}
+
+.btn-icon-danger:hover {
+  background: #3a1e1e;
+  border-color: #f38ba8;
+  color: #f38ba8;
+}
+
+.voices-link {
+  font-size: 11px;
+  color: #6c7086;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.voices-link:hover {
+  color: #cba6f7;
+}
+
 /* ─── Visibility Helpers ────────────────────────────────────────────────────── */
 .hidden {
   display: none !important;

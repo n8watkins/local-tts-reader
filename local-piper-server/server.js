@@ -206,6 +206,25 @@ app.get("/voices", async (_req, res) => {
   }
 });
 
+// ─── DELETE /voices/:name  (remove an installed voice) ───────────────────────
+app.delete("/voices/:name", async (req, res) => {
+  const name = path.basename(req.params.name); // strip any path traversal
+  if (!name.endsWith(".onnx")) {
+    return res.status(400).json({ error: "Voice name must end in .onnx" });
+  }
+  const onnxPath = path.join(VOICE_DIR, name);
+  const jsonPath  = onnxPath + ".json";
+  try {
+    await Promise.allSettled([
+      fs.rm(onnxPath, { force: true }),
+      fs.rm(jsonPath, { force: true })
+    ]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Start Server ─────────────────────────────────────────────────────────────
 app.listen(PORT, HOST, () => {
   console.log(`\n🔊 Local Piper TTS Server`);

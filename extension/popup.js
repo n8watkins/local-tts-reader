@@ -12,6 +12,8 @@ const pitchValue       = document.getElementById("pitch-value");
 const volumeSlider     = document.getElementById("volume-slider");
 const volumeValue      = document.getElementById("volume-value");
 const voiceSelect      = document.getElementById("voice-select");
+const favBtn           = document.getElementById("fav-btn");
+const delBtn           = document.getElementById("del-btn");
 const fallbackCheck    = document.getElementById("fallback-checkbox");
 const testBtn          = document.getElementById("test-btn");
 const stopBtn          = document.getElementById("stop-btn");
@@ -24,8 +26,11 @@ const DEFAULTS = {
   pitch: 1.0,
   volume: 1.0,
   fallbackToBrowser: true,
-  voice: ""  // empty = server default
+  voice: "",
+  favorites: []
 };
+
+let favorites = [];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(val) {
@@ -63,26 +68,41 @@ function formatVoiceName(filename) {
   return base;
 }
 
+// ─── Favourite Button State ───────────────────────────────────────────────────
+function updateFavBtn() {
+  const isFav = favorites.includes(voiceSelect.value);
+  favBtn.textContent = isFav ? "★" : "☆";
+  favBtn.classList.toggle("active", isFav);
+  favBtn.title = isFav ? "Remove from favourites" : "Add to favourites";
+}
+
 // ─── Voice List Loader ────────────────────────────────────────────────────────
 async function loadVoiceList(selectedVoice) {
   try {
-    const res     = await fetch(`${PIPER_URL}/voices`);
+    const res = await fetch(`${PIPER_URL}/voices`);
     const { voices } = await res.json();
 
+    // Favourites first, then alphabetically
+    const sorted = [
+      ...voices.filter(v =>  favorites.includes(v)).sort(),
+      ...voices.filter(v => !favorites.includes(v)).sort()
+    ];
+
     voiceSelect.innerHTML = "";
-    for (const v of voices) {
+    for (const v of sorted) {
       const opt = document.createElement("option");
       opt.value = v;
-      opt.textContent = formatVoiceName(v);
+      opt.textContent = (favorites.includes(v) ? "★ " : "") + formatVoiceName(v);
       if (v === selectedVoice) opt.selected = true;
       voiceSelect.appendChild(opt);
     }
 
-    // If nothing matched the stored value, pick first and save
-    if (!voiceSelect.value && voices.length > 0) {
-      voiceSelect.value = voices[0];
+    if (!voiceSelect.value && sorted.length > 0) {
+      voiceSelect.value = sorted[0];
       saveSettings();
     }
+
+    updateFavBtn();
   } catch (_) {
     voiceSelect.innerHTML = '<option value="">Server offline</option>';
   }
@@ -168,7 +188,8 @@ function saveSettings() {
     pitch: parseFloat(pitchSlider.value),
     volume: parseFloat(volumeSlider.value),
     fallbackToBrowser: fallbackCheck.checked,
-    voice: voiceSelect.value
+    voice: voiceSelect.value,
+    favorites
   });
 }
 
@@ -186,7 +207,7 @@ async function loadSettings() {
   pitchValue.textContent  = fmt(settings.pitch);
   volumeValue.textContent = fmt(settings.volume);
 
-  // Pre-set stored voice so loadVoiceList can select it after fetching
+  favorites = settings.favorites || [];
   voiceSelect.value = settings.voice || "";
 
   applyEngineUI(settings.engine);
@@ -213,7 +234,32 @@ volumeSlider.addEventListener("input", () => {
   saveSettings();
 });
 
-voiceSelect.addEventListener("change", saveSettings);
+voiceSelect.addEventListener("change", () => { saveSettings(); updateFavBtn(); });
+
+favBtn.addEventListener("click", () => {
+  const v = voiceSelect.value;
+  if (!v) return;
+  favorites = favorites.includes(v)
+    ? favorites.filter(f => f !== v)
+    : [...favorites, v];
+  chrome.storage.local.set({ favorites });
+  loadVoiceList(v);
+});
+
+delBtn.addEventListener("click", async () => {
+  const v = voiceSelect.value;
+  if (!v) return;
+  if (!confirm(`Delete "${formatVoiceName(v)}"?\nThis removes the file from disk.`)) return;
+  try {
+    await fetch(`${PIPER_URL}/voices/${encodeURIComponent(v)}`, { method: "DELETE" });
+    favorites = favorites.filter(f => f !== v);
+    chrome.storage.local.set({ favorites, voice: "" });
+    loadVoiceList("");
+  } catch (err) {
+    console.error("Delete voice failed:", err);
+  }
+});
+
 fallbackCheck.addEventListener("change", saveSettings);
 
 // ─── Test Error Display ───────────────────────────────────────────────────────

@@ -86,23 +86,30 @@
           type="range"
           id="volume-slider"
           min="0"
-          max="1"
+          max="2"
           step="0.05"
           value="1.0"
         />
         <div class="slider-ticks">
-          <span>0%</span>
-          <span>50%</span>
-          <span>100%</span>
+          <span>0</span>
+          <span>1×</span>
+          <span>2×</span>
         </div>
       </section>
 
       <!-- Voice selector (shown when Piper is selected) -->
       <section class="section piper-only" id="voice-section">
         <label class="label" for="voice-select">Voice</label>
-        <select class="select" id="voice-select">
-          <option value="">Loading…</option>
-        </select>
+        <div class="voice-row">
+          <select class="select" id="voice-select">
+            <option value="">Loading…</option>
+          </select>
+          <button class="btn-icon" id="fav-btn" title="Favourite this voice">☆</button>
+          <button class="btn-icon btn-icon-danger" id="del-btn" title="Delete this voice">🗑</button>
+        </div>
+        <a class="voices-link" id="voices-link"
+           href="https://huggingface.co/rhasspy/piper-voices/tree/main/en"
+           target="_blank">Browse &amp; download more voices ↗</a>
       </section>
 
       <!-- Fallback option (shown when Piper is selected) -->

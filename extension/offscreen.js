@@ -4,6 +4,7 @@
 let currentAudio = null;
 let currentBlobUrl = null;
 let rejectCurrentPlay = null; // C1: lets stopCurrentAudio() settle a pending playBlob() Promise
+let audioCtx = null;          // Web Audio API context — reused across chunks for volume boost
 let playbackQueue = [];
 let isPlaying = false;
 let playGeneration = 0; // incremented on each new speak request; stale queues self-terminate
@@ -81,8 +82,19 @@ function playBlob(blob, volume = 1.0, rate = 1.0) {
     const url = URL.createObjectURL(blob);
     currentBlobUrl = url;
     currentAudio = new Audio(url);
-    currentAudio.volume = Math.max(0, Math.min(1, volume));
-    currentAudio.playbackRate = Math.max(0.1, Math.min(4.0, rate)); // C6
+    currentAudio.playbackRate = Math.max(0.1, Math.min(4.0, rate));
+
+    // Volume via Web Audio API GainNode — allows values > 1.0 for boost.
+    // Standard audio.volume is capped at 1.0; GainNode has no upper limit.
+    if (!audioCtx || audioCtx.state === "closed") {
+      audioCtx = new AudioContext();
+    }
+    const source = audioCtx.createMediaElementSource(currentAudio);
+    const gain   = audioCtx.createGain();
+    gain.gain.value = Math.max(0, volume);
+    source.connect(gain);
+    gain.connect(audioCtx.destination);
+    audioCtx.resume().catch(() => {});
 
     currentAudio.onended = () => {
       rejectCurrentPlay = null;
