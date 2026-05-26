@@ -1,6 +1,6 @@
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PIPER_BASE_URL = "http://127.0.0.1:5050";
-const MAX_PROFILES   = 3;
+const MAX_PROFILES   = 5;
 const MAX_FAVORITES  = 5;
 
 // ─── Icons (Lucide SVG, inlined) ──────────────────────────────────────────────
@@ -54,6 +54,30 @@ function activeProfile() {
 // ─── Persist ──────────────────────────────────────────────────────────────────
 function save() {
   chrome.storage.local.set({ profiles, activeId, favorites, deletedVoices, favsOnly, fallback });
+}
+
+// ─── Custom Alert Modal ───────────────────────────────────────────────────────
+function customAlert(message) {
+  return new Promise(resolve => {
+    const overlay    = document.getElementById("confirm-modal");
+    const msgEl      = document.getElementById("modal-msg");
+    const confirmBtn = document.getElementById("modal-confirm-btn");
+    const cancelBtn  = document.getElementById("modal-cancel-btn");
+
+    msgEl.textContent = message;
+    confirmBtn.textContent = "Got it";
+    cancelBtn.classList.add("hidden");
+    overlay.classList.remove("hidden");
+
+    function cleanup() {
+      overlay.classList.add("hidden");
+      confirmBtn.textContent = "Delete"; // restore default
+      cancelBtn.classList.remove("hidden");
+      confirmBtn.removeEventListener("click", onOk);
+    }
+    function onOk() { cleanup(); resolve(); }
+    confirmBtn.addEventListener("click", onOk);
+  });
 }
 
 // ─── Custom Confirm Modal ─────────────────────────────────────────────────────
@@ -241,12 +265,14 @@ function updateFavsCount() {
 }
 
 // ─── Voices — Favorite Toggle ─────────────────────────────────────────────────
-function toggleFavorite(filename) {
+async function toggleFavorite(filename) {
   if (favorites.includes(filename)) {
     favorites = favorites.filter(f => f !== filename);
   } else {
     if (favorites.length >= MAX_FAVORITES) {
-      alert(`You can have at most ${MAX_FAVORITES} favorite voices. Remove one first.`);
+      await customAlert(
+        `You've reached the ${MAX_FAVORITES}-favorite limit.\n\nUnstar a voice to make room for another.`
+      );
       return;
     }
     favorites = [...favorites, filename];
@@ -577,9 +603,11 @@ async function deleteProfile(profileId) {
 }
 
 // ─── Profiles — Create form ───────────────────────────────────────────────────
-document.getElementById("new-profile-btn").addEventListener("click", () => {
+document.getElementById("new-profile-btn").addEventListener("click", async () => {
   if (profiles.length >= MAX_PROFILES) {
-    alert(`Maximum ${MAX_PROFILES} profiles reached. Delete one to create a new one.`);
+    await customAlert(
+      `You've reached the ${MAX_PROFILES}-profile limit.\n\nDelete an existing profile to make room for a new one.`
+    );
     return;
   }
   document.getElementById("create-profile-form").classList.remove("hidden");
