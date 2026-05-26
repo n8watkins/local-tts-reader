@@ -61,12 +61,16 @@ function validateText(text) {
 // ─── Piper Runner ─────────────────────────────────────────────────────────────
 // C10 fix: uses a `settled` flag so the timeout handler and the `close` event
 // can both run without a second reject() call on an already-settled Promise.
-function runPiper({ inputPath, outputPath, voiceModel }) {
+//
+// S1 fix: Piper reads text from stdin — there is no --input-file flag.
+// Passing an unrecognised flag caused Piper to silently wait for stdin forever,
+// hitting our 60 s timeout on every request. Also corrected --output-file →
+// --output_file (underscore) to match Piper's actual CLI.
+function runPiper({ text, outputPath, voiceModel }) {
   return new Promise((resolve, reject) => {
     const args = [
       "--model",       path.join(VOICE_DIR, voiceModel),
-      "--input-file",  inputPath,
-      "--output-file", outputPath
+      "--output_file", outputPath          // underscore, not hyphen
     ];
 
     let proc;
@@ -75,6 +79,10 @@ function runPiper({ inputPath, outputPath, voiceModel }) {
     } catch (err) {
       return reject(new Error(`Failed to spawn Piper: ${err.message}`));
     }
+
+    // Feed text via stdin and close the pipe so Piper knows input is complete
+    proc.stdin.write(text, "utf8");
+    proc.stdin.end();
 
     let stderr = "";
     proc.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
@@ -126,13 +134,11 @@ app.post("/tts", async (req, res) => {
     return res.status(400).json({ error: "Voice must be a .onnx filename." });
   }
 
-  const cleanText = text.trim();
-  const id        = crypto.randomUUID();
-  const inputPath = path.join(OUTPUT_DIR, `${id}.txt`);
+  const cleanText  = text.trim();
+  const id         = crypto.randomUUID();
   const outputPath = path.join(OUTPUT_DIR, `${id}.wav`);
 
   const cleanup = () => Promise.allSettled([
-    fs.rm(inputPath,  { force: true }),
     fs.rm(outputPath, { force: true })
   ]);
 
@@ -140,11 +146,8 @@ app.post("/tts", async (req, res) => {
     // Ensure output directory exists
     await fs.mkdir(OUTPUT_DIR, { recursive: true });
 
-    // Write text input
-    await fs.writeFile(inputPath, cleanText, "utf8");
-
-    // Run Piper
-    await runPiper({ inputPath, outputPath, voiceModel: safeVoice });
+    // Run Piper — text is passed via stdin (S1 fix)
+    await runPiper({ text: cleanText, outputPath, voiceModel: safeVoice });
 
     // Stream the WAV back
     res.setHeader("Content-Type", "audio/wav");
