@@ -117,8 +117,9 @@ async function checkPiperOnline() {
 }
 
 // ─── Playback State ───────────────────────────────────────────────────────────
-let _isPlayingPiper = false;
-let _isPausedPiper  = false;
+let _isPlayingPiper    = false;
+let _isPausedPiper     = false;
+let _playingSourceTabId = null; // tab that triggered the current playback
 
 // ─── Piper TTS ───────────────────────────────────────────────────────────────
 async function speakWithPiper(text, settings) {
@@ -151,8 +152,9 @@ async function speakWithPiper(text, settings) {
 
 // ─── Stop All ────────────────────────────────────────────────────────────────
 async function stopAll() {
-  _isPlayingPiper = false;
-  _isPausedPiper  = false;
+  _isPlayingPiper    = false;
+  _isPausedPiper     = false;
+  _playingSourceTabId = null;
   _piperOnlineCache.expiresAt = 0; // invalidate cache so next read checks fresh
   chrome.tts.stop();
   try {
@@ -179,7 +181,7 @@ async function speakText(text, settings) {
 }
 
 // ─── Context Menu Click Handler ───────────────────────────────────────────────
-chrome.contextMenus.onClicked.addListener(async (info) => {
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "stop-reading") { await stopAll(); return; }
 
   const text = info.selectionText?.trim();
@@ -207,11 +209,19 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
   const profile = profiles.find(p => p.id === activeId) || profiles[0];
   if (!profile) return;
 
+  _playingSourceTabId = tab?.id ?? null;
   await speakText(text, profile);
 });
 
 // ─── Messages from Popup / Content Script / Offscreen ────────────────────────
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Content script tab is navigating/closing — stop if it was the source tab
+  if (message.type === "tab-unloading") {
+    if (_playingSourceTabId !== null && sender.tab?.id === _playingSourceTabId) {
+      stopAll();
+    }
+    return;
+  }
   // stop-all: fire-and-forget — respond immediately so the popup can close
   // without leaving an open message channel that Chrome will kill mid-flight.
   if (message.type === "stop-all") {
@@ -264,6 +274,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     } else {
       const text = message.text || "";
       if (!text) return;
+      _playingSourceTabId = sender.tab?.id ?? null;
       (async () => {
         const { profiles = [], activeId = "" } =
           await chrome.storage.local.get(["profiles", "activeId"]);
