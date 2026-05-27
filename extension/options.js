@@ -722,7 +722,7 @@ function refreshVoiceSelects() {
 }
 
 // ─── Settings Tab ─────────────────────────────────────────────────────────────
-const DEFAULT_SHORTCUTS = { read: "Alt+Shift+R", pause: "Alt+Shift+D" };
+const DEFAULT_SHORTCUTS = { read: "Alt+Shift+R", pause: "Alt+Shift+D", stop: "Alt+Shift+E" };
 let shortcuts = { ...DEFAULT_SHORTCUTS };
 
 function comboFromEvent(e) {
@@ -747,8 +747,10 @@ function comboFromEvent(e) {
 function renderShortcuts() {
   const readBtn  = document.getElementById("bind-read");
   const pauseBtn = document.getElementById("bind-pause");
+  const stopBtn  = document.getElementById("bind-stop");
   if (readBtn)  readBtn.textContent  = shortcuts.read  || "—";
   if (pauseBtn) pauseBtn.textContent = shortcuts.pause || "—";
+  if (stopBtn)  stopBtn.textContent  = shortcuts.stop  || "—";
 }
 
 function startListening(btn, action) {

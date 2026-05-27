@@ -120,6 +120,7 @@ async function checkPiperOnline() {
 let _isPlayingPiper    = false;
 let _isPausedPiper     = false;
 let _playingSourceTabId = null; // tab that triggered the current playback
+let _currentVolume     = 1.0;  // cached from active profile; sent to content script overlay
 
 // ─── Piper TTS ───────────────────────────────────────────────────────────────
 async function speakWithPiper(text, settings) {
@@ -128,6 +129,7 @@ async function speakWithPiper(text, settings) {
 
   _isPlayingPiper = true;
   _isPausedPiper  = false;
+  _currentVolume  = settings.volume ?? 1.0;
   try {
     await ensureOffscreenDocument();
   } catch (err) {
@@ -237,9 +239,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
-  // Popup polls to show now-playing indicator
+  // Content script polls to drive the overlay — only report playing=true
+  // to the tab that triggered playback (prevents other tabs from showing the
+  // overlay and hitting the stop branch when their Alt+Shift+R fires).
   if (message.type === "get-playback-state") {
-    sendResponse({ isPlaying: _isPlayingPiper, isPaused: _isPausedPiper });
+    const isSource = _playingSourceTabId === null || sender.tab?.id === _playingSourceTabId;
+    sendResponse({
+      isPlaying: _isPlayingPiper && isSource,
+      isPaused:  _isPausedPiper,
+      volume:    _currentVolume
+    });
     return; // synchronous
   }
 
@@ -266,23 +275,50 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // Keyboard shortcut: Alt+Shift+R — read/stop toggle
-  // The content script passes the selected text directly — no executeScript needed.
+  // Keyboard shortcut: Alt+Shift+R — always START reading with selected text.
+  // Stop is handled in the content script (sends stop-all when _localPlaying is true).
+  // This avoids the wrong-tab problem where Tab B's poll saw Tab A as "playing"
+  // and keyboard-read would stop instead of start.
   if (message.type === "keyboard-read") {
-    if (_isPlayingPiper) {
-      stopAll();
-    } else {
-      const text = message.text || "";
-      if (!text) return;
-      _playingSourceTabId = sender.tab?.id ?? null;
-      (async () => {
-        const { profiles = [], activeId = "" } =
-          await chrome.storage.local.get(["profiles", "activeId"]);
-        const profile = profiles.find(p => p.id === activeId) || profiles[0];
-        if (profile) await speakText(text, profile);
-      })().catch(err => console.error("[keyboard-read]", err));
-    }
+    const text = message.text || "";
+    if (!text) return;
+    _playingSourceTabId = sender.tab?.id ?? null;
+    (async () => {
+      const { profiles = [], activeId = "" } =
+        await chrome.storage.local.get(["profiles", "activeId"]);
+      const profile = profiles.find(p => p.id === activeId) || profiles[0];
+      if (profile) await speakText(text, profile);
+    })().catch(err => console.error("[keyboard-read]", err));
     return;
+  }
+
+  // Overlay volume rocker: adjust active profile volume and update live gain
+  if (message.type === "adjust-volume") {
+    (async () => {
+      const { profiles = [], activeId = "" } =
+        await chrome.storage.local.get(["profiles", "activeId"]);
+      const profile = profiles.find(p => p.id === activeId) || profiles[0];
+      if (!profile) { sendResponse({ ok: false }); return; }
+
+      const raw = (profile.volume ?? 1.0) + (message.delta ?? 0);
+      profile.volume = Math.round(Math.max(0, Math.min(2.0, raw)) * 10) / 10;
+      _currentVolume = profile.volume;
+      await chrome.storage.local.set({ profiles });
+
+      // Tell the offscreen player to change gain in real-time
+      try {
+        const existing = await chrome.runtime.getContexts({
+          contextTypes: ["OFFSCREEN_DOCUMENT"],
+          documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)]
+        }).catch(() => []);
+        if (existing.length > 0) {
+          chrome.runtime.sendMessage({ type: "set-volume", volume: profile.volume }).catch(() => {});
+        }
+      } catch (_) {}
+
+      sendResponse({ ok: true, volume: profile.volume });
+    })();
+    return true; // async response
   }
 
   // Keyboard shortcut: Alt+Shift+D — pause/resume toggle

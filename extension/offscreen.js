@@ -5,11 +5,13 @@ let currentAudio = null;
 let currentBlobUrl = null;
 let rejectCurrentPlay = null;    // C1: lets stopCurrentAudio() settle a pending playBlob() Promise
 let currentDisconnectNodes = null; // stores the active chunk's disconnectNodes so stopCurrentAudio can call it
+let currentGainNode = null;      // exposed so set-volume can adjust gain in real-time
 let audioCtx = null;             // Web Audio API context — reused across chunks for volume boost
 let playbackQueue = [];
 let isPlaying = false;
 let isPaused  = false; // true while audio is paused mid-queue
 let playGeneration = 0; // incremented on each new speak request; stale queues self-terminate
+let currentVolume = 1.0; // updated by speak-text and set-volume; used for per-chunk initial gain
 
 // ─── Chunk Splitter ───────────────────────────────────────────────────────────
 function splitIntoChunks(text, maxLength = 350) {
@@ -97,6 +99,7 @@ function playBlob(blob, volume = 1.0, rate = 1.0) {
     source.connect(gain);
     gain.connect(audioCtx.destination);
     audioCtx.resume().catch(() => {});
+    currentGainNode = gain; // expose so set-volume can adjust in real-time
 
     // Disconnect Web Audio nodes after use to prevent accumulating dead nodes
     // on the shared AudioContext across chunks. Each playBlob call creates a
@@ -106,6 +109,7 @@ function playBlob(blob, volume = 1.0, rate = 1.0) {
     function disconnectNodes() {
       if (nodesDisconnected) return;
       nodesDisconnected = true;
+      if (currentGainNode === gain) currentGainNode = null; // clear only if still this chunk's node
       currentDisconnectNodes = null; // clear module-level ref once called
       try { source.disconnect(); } catch (_) {}
       try { gain.disconnect();  } catch (_) {}
@@ -265,8 +269,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return;
   }
 
+  if (message.type === "set-volume") {
+    // Real-time gain adjustment from the overlay volume rocker
+    currentVolume = Math.max(0, message.volume ?? 1.0);
+    if (currentGainNode) currentGainNode.gain.value = currentVolume;
+    return;
+  }
+
   if (message.type === "speak-text") {
     const { text, piperUrl, volume = 1.0, rate = 1.0, voice = "" } = message;
+    currentVolume = volume; // track for reference; individual chunks still use passed-in volume
 
     // Stop previous playback and bump generation so stale queues self-terminate
     stopAll();

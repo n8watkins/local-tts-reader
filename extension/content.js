@@ -4,7 +4,7 @@
 //   2. Floating "Now Playing" overlay (shadow DOM, bottom-right corner)
 
 // ─── Shortcuts ────────────────────────────────────────────────────────────────
-const DEFAULT_SHORTCUTS = { read: "Alt+Shift+R", pause: "Alt+Shift+D" };
+const DEFAULT_SHORTCUTS = { read: "Alt+Shift+R", pause: "Alt+Shift+D", stop: "Alt+Shift+E" };
 let activeShortcuts = { ...DEFAULT_SHORTCUTS };
 
 chrome.storage.local.get({ shortcuts: DEFAULT_SHORTCUTS }, ({ shortcuts }) => {
@@ -40,20 +40,30 @@ function comboFromEvent(e) {
 
 // Cache last known selection so modifier keys can't clear it before our handler reads it
 let _lastSelection = "";
-const _snapshotSel = () => { const s = window.getSelection()?.toString().trim(); if (s) _lastSelection = s; };
+const _snapshotSel = () => {
+  const s = window.getSelection()?.toString().trim();
+  if (s) _lastSelection = s;
+};
 document.addEventListener("mouseup",         _snapshotSel, true);
 document.addEventListener("selectionchange", _snapshotSel);
-document.addEventListener("keyup",           _snapshotSel, true); // captures keyboard selections (Shift+arrow)
+document.addEventListener("keyup",           _snapshotSel, true); // keyboard selections (Shift+arrow)
 
 // ─── Local playback state (optimistic — for instant UI updates) ───────────────
-let _localPlaying = false;
-let _localPaused  = false;
+let _localPlaying  = false;
+let _localPaused   = false;
+let _currentVolume = 1.0;
 
 // Capture-phase keydown — fires before any page handler
 document.addEventListener("keydown", (e) => {
+  // Snapshot selection right now — some pages clear it when a modifier key fires,
+  // so we grab it on each keydown to make sure we have the freshest non-empty value.
+  const sel = window.getSelection()?.toString().trim();
+  if (sel) _lastSelection = sel;
+
   const combo = comboFromEvent(e);
   if (!combo) return;
 
+  // ── Read / Stop toggle (Alt+Shift+R by default) ──────────────────────────────
   if (combo === activeShortcuts.read) {
     e.preventDefault();
     if (_localPlaying) {
@@ -72,13 +82,22 @@ document.addEventListener("keydown", (e) => {
       chrome.runtime.sendMessage({ type: "keyboard-read", text });
     }
 
+  // ── Pause / Resume (Alt+Shift+D by default) ───────────────────────────────────
   } else if (combo === activeShortcuts.pause) {
     e.preventDefault();
-    if (!_localPlaying) return;
-    // Optimistic toggle — UI flips instantly, audio catches up
-    _localPaused = !_localPaused;
-    updateOverlay(_localPlaying, _localPaused);
+    if (_localPlaying) {
+      _localPaused = !_localPaused;
+      updateOverlay(_localPlaying, _localPaused); // instant visual feedback
+    }
     chrome.runtime.sendMessage({ type: "keyboard-pause" });
+
+  // ── Stop / Exit (Alt+Shift+E by default) ─────────────────────────────────────
+  } else if (combo === activeShortcuts.stop) {
+    e.preventDefault();
+    _localPlaying = false;
+    _localPaused  = false;
+    updateOverlay(false, false);
+    chrome.runtime.sendMessage({ type: "stop-all" });
   }
 }, true);
 
@@ -149,7 +168,7 @@ const OVERLAY_CSS = `
     margin: 0 2px;
   }
 
-  /* Buttons */
+  /* Shared button base */
   .btn {
     background: transparent;
     border: none;
@@ -162,11 +181,35 @@ const OVERLAY_CSS = `
     flex-shrink: 0;
     transition: background 0.15s, color 0.15s;
   }
+
+  /* Play/Pause button */
   .btn-pp {
     font-size: 14px;
     color: #cba6f7;
   }
   .btn-pp:hover { background: rgba(203,166,247,0.12); }
+
+  /* Volume rocker */
+  .btn-vol {
+    font-size: 13px;
+    font-weight: 700;
+    color: #a6adc8;
+    width: 20px; height: 20px;
+    line-height: 1;
+  }
+  .btn-vol:hover { background: rgba(166,173,200,0.14); color: #cdd6f4; }
+
+  .vol-val {
+    font-size: 11px;
+    font-weight: 700;
+    color: #a6adc8;
+    min-width: 34px;
+    text-align: center;
+    flex-shrink: 0;
+    letter-spacing: 0.01em;
+  }
+
+  /* Close / Stop button */
   .btn-close {
     font-size: 10px;
     color: #585b70;
@@ -231,6 +274,23 @@ function showHint(msg) {
   }, 2500);
 }
 
+function fmtVol(v) {
+  return Math.round((v ?? 1.0) * 100) + "%";
+}
+
+function adjustVolume(delta) {
+  chrome.runtime.sendMessage({ type: "adjust-volume", delta }, (resp) => {
+    if (chrome.runtime.lastError || !resp?.ok) return;
+    _currentVolume = resp.volume;
+    // Update volume display immediately without a full re-render
+    const bar = overlayShadow?.querySelector(".bar");
+    if (bar) {
+      const volEl = bar.querySelector(".vol-val");
+      if (volEl) volEl.textContent = fmtVol(_currentVolume);
+    }
+  });
+}
+
 function updateOverlay(isPlaying, isPaused) {
   if (!isPlaying && !isPaused) {
     if (overlayHost && !overlayShadow?.querySelector(".hint-bar")) removeOverlay();
@@ -242,11 +302,13 @@ function updateOverlay(isPlaying, isPaused) {
 
   let bar = shadow.querySelector(".bar");
   if (!bar) {
-    const brand  = document.createElement("span");
+    // ── Brand icon ──
+    const brand = document.createElement("span");
     brand.className = "brand";
     brand.textContent = "🔊";
 
-    const btnPP  = document.createElement("button");
+    // ── Play/Pause button ──
+    const btnPP = document.createElement("button");
     btnPP.className = "btn btn-pp";
     btnPP.addEventListener("click", () => {
       _localPaused = !_localPaused;
@@ -254,12 +316,36 @@ function updateOverlay(isPlaying, isPaused) {
       chrome.runtime.sendMessage({ type: "keyboard-pause" });
     });
 
-    const lbl    = document.createElement("span");
+    // ── Status label ──
+    const lbl = document.createElement("span");
     lbl.className = "lbl";
 
-    const sep    = document.createElement("span");
-    sep.className = "sep";
+    // ── Separator ──
+    const sep1 = document.createElement("span");
+    sep1.className = "sep";
 
+    // ── Volume rocker: − vol% + ──
+    const btnMinus = document.createElement("button");
+    btnMinus.className = "btn btn-vol";
+    btnMinus.textContent = "−";
+    btnMinus.title = "Volume down";
+    btnMinus.addEventListener("click", () => adjustVolume(-0.1));
+
+    const volVal = document.createElement("span");
+    volVal.className = "vol-val";
+    volVal.textContent = fmtVol(_currentVolume);
+
+    const btnPlus = document.createElement("button");
+    btnPlus.className = "btn btn-vol";
+    btnPlus.textContent = "+";
+    btnPlus.title = "Volume up";
+    btnPlus.addEventListener("click", () => adjustVolume(0.1));
+
+    // ── Separator ──
+    const sep2 = document.createElement("span");
+    sep2.className = "sep";
+
+    // ── Stop button ──
     const btnClose = document.createElement("button");
     btnClose.className = "btn btn-close";
     btnClose.title = "Stop";
@@ -273,12 +359,16 @@ function updateOverlay(isPlaying, isPaused) {
 
     bar = document.createElement("div");
     bar.className = "bar";
-    bar.append(brand, btnPP, lbl, sep, btnClose);
+    bar.append(brand, btnPP, lbl, sep1, btnMinus, volVal, btnPlus, sep2, btnClose);
     shadow.appendChild(bar);
   }
 
-  const btnPP = bar.querySelector(".btn-pp");
-  const lbl   = bar.querySelector(".lbl");
+  const btnPP  = bar.querySelector(".btn-pp");
+  const lbl    = bar.querySelector(".lbl");
+  const volVal = bar.querySelector(".vol-val");
+
+  // Always refresh volume display
+  if (volVal) volVal.textContent = fmtVol(_currentVolume);
 
   if (isPaused) {
     btnPP.textContent = "▶";
@@ -297,10 +387,9 @@ function updateOverlay(isPlaying, isPaused) {
 setInterval(() => {
   chrome.runtime.sendMessage({ type: "get-playback-state" }, (resp) => {
     if (chrome.runtime.lastError || !resp) return;
-    // Only update local state from poll if it contradicts optimistic state
-    // (e.g. audio ended naturally, or was stopped from another tab)
     _localPlaying = resp.isPlaying;
     _localPaused  = resp.isPaused;
+    if (resp.volume != null) _currentVolume = resp.volume;
     updateOverlay(resp.isPlaying, resp.isPaused);
   });
 }, 1000);
