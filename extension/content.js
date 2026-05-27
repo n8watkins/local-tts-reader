@@ -1,7 +1,7 @@
 // ─── Local TTS Reader — Content Script ───────────────────────────────────────
 // Injected into every webpage.
 //   1. Keyboard shortcuts → background.js
-//   2. Floating "Now Playing" overlay (shadow DOM, bottom-right)
+//   2. Floating "Now Playing" overlay (shadow DOM, bottom-right corner)
 
 // ─── Shortcuts ────────────────────────────────────────────────────────────────
 const DEFAULT_SHORTCUTS = { read: "Alt+Shift+R", pause: "Alt+Shift+D" };
@@ -14,119 +14,184 @@ chrome.storage.onChanged.addListener((changes) => {
   if (changes.shortcuts) activeShortcuts = changes.shortcuts.newValue;
 });
 
+// Use e.code (physical key position) not e.key (character).
+// On non-US keyboards / AltGr active, Alt+R produces e.key="®" — e.code is always "KeyR".
 function comboFromEvent(e) {
+  const MODIFIER_CODES = new Set([
+    "AltLeft","AltRight","ControlLeft","ControlRight",
+    "ShiftLeft","ShiftRight","MetaLeft","MetaRight"
+  ]);
+  if (MODIFIER_CODES.has(e.code)) return "";  // modifier-only press
+
   const parts = [];
   if (e.altKey)   parts.push("Alt");
   if (e.ctrlKey)  parts.push("Ctrl");
   if (e.shiftKey) parts.push("Shift");
   if (e.metaKey)  parts.push("Meta");
-  const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
-  if (!["Alt", "Control", "Shift", "Meta"].includes(e.key)) parts.push(key);
+
+  // "KeyR" → "R",  "Digit1" → "1",  "Space" / "F1" → as-is
+  const keyName =
+    e.code.startsWith("Key")   ? e.code.slice(3)  :
+    e.code.startsWith("Digit") ? e.code.slice(5)  :
+    e.code;
+  parts.push(keyName);
   return parts.join("+");
 }
 
-// Snapshot selection on mouseup so modifier keys can't clear it before our handler runs
+// Cache last known selection so modifier keys can't clear it before our handler reads it
 let _lastSelection = "";
-document.addEventListener("mouseup",        () => { const s = window.getSelection()?.toString().trim(); if (s) _lastSelection = s; }, true);
-document.addEventListener("selectionchange",() => { const s = window.getSelection()?.toString().trim(); if (s) _lastSelection = s; });
+const _snapshotSel = () => { const s = window.getSelection()?.toString().trim(); if (s) _lastSelection = s; };
+document.addEventListener("mouseup",         _snapshotSel, true);
+document.addEventListener("selectionchange", _snapshotSel);
+document.addEventListener("keyup",           _snapshotSel, true); // captures keyboard selections (Shift+arrow)
 
-// Capture phase — fires before any page keydown handler
+// ─── Local playback state (optimistic — for instant UI updates) ───────────────
+let _localPlaying = false;
+let _localPaused  = false;
+
+// Capture-phase keydown — fires before any page handler
 document.addEventListener("keydown", (e) => {
   const combo = comboFromEvent(e);
+  if (!combo) return;
 
   if (combo === activeShortcuts.read) {
     e.preventDefault();
-    const text = window.getSelection()?.toString().trim() || _lastSelection;
-    if (!text) { showHint("Select text first"); return; }
-    chrome.runtime.sendMessage({ type: "keyboard-read", text });
+    if (_localPlaying) {
+      // Optimistic stop
+      _localPlaying = false;
+      _localPaused  = false;
+      updateOverlay(false, false);
+      chrome.runtime.sendMessage({ type: "stop-all" });
+    } else {
+      const text = window.getSelection()?.toString().trim() || _lastSelection;
+      if (!text) { showHint("Select text first"); return; }
+      // Optimistic start
+      _localPlaying = true;
+      _localPaused  = false;
+      updateOverlay(true, false);
+      chrome.runtime.sendMessage({ type: "keyboard-read", text });
+    }
 
   } else if (combo === activeShortcuts.pause) {
     e.preventDefault();
+    if (!_localPlaying) return;
+    // Optimistic toggle — UI flips instantly, audio catches up
+    _localPaused = !_localPaused;
+    updateOverlay(_localPlaying, _localPaused);
     chrome.runtime.sendMessage({ type: "keyboard-pause" });
   }
 }, true);
 
-// Tell background to stop when this tab navigates away or closes
+// Stop when this tab navigates away or closes
 window.addEventListener("pagehide", () => {
   chrome.runtime.sendMessage({ type: "tab-unloading" });
 });
 
 // ─── Overlay ──────────────────────────────────────────────────────────────────
-// Uses a closed shadow DOM so page styles can't leak in.
-// Re-appends itself if a page framework (e.g. React) removes it from the DOM.
-
 let overlayHost   = null;
 let overlayShadow = null;
 
-function buildOverlayDOM(shadow) {
-  const style = document.createElement("style");
-  style.textContent = `
-    :host {
-      all: initial;
-      position: fixed !important;
-      bottom: 24px !important;
-      right: 24px !important;
-      z-index: 2147483647 !important;
-      pointer-events: auto !important;
-      display: block !important;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    .bar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
-      background: #1e1e2e;
-      border: 1px solid #45475a;
-      border-radius: 12px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.65);
-      white-space: nowrap;
-    }
-    .btn {
-      background: #313244;
-      border: 1px solid #45475a;
-      border-radius: 7px;
-      width: 28px; height: 28px;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
-      font-size: 13px;
-      transition: background 0.15s, border-color 0.15s;
-      flex-shrink: 0;
-      outline: none;
-      padding: 0;
-      color: #cdd6f4;
-    }
-    .btn:hover { background: #45475a; }
-    .btn-pp  { color: #a6e3a1; border-color: #3a6a4a; }
-    .btn-pp:hover { border-color: #a6e3a1; }
-    .btn-close { color: #f38ba8; border-color: #5a3a3a; }
-    .btn-close:hover { border-color: #f38ba8; background: #3a1e1e; }
-    .lbl {
-      font-size: 12px;
-      font-weight: 600;
-      color: #cdd6f4;
-      min-width: 44px;
-      text-align: center;
-    }
-    .hint-bar {
-      padding: 9px 14px;
-      background: #1e1e2e;
-      border: 1px solid #585b70;
-      border-radius: 10px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-      font-size: 12px;
-      font-weight: 600;
-      color: #a6adc8;
-      pointer-events: none;
-      user-select: none;
-      white-space: nowrap;
-    }
-  `;
-  shadow.appendChild(style);
-}
+const OVERLAY_CSS = `
+  :host {
+    all: initial;
+    position: fixed !important;
+    bottom: 24px !important;
+    right: 24px !important;
+    z-index: 2147483647 !important;
+    pointer-events: auto !important;
+    display: block !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /* ── Main playing bar ── */
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px 7px 12px;
+    background: #1e1e2e;
+    border: 1px solid #45475a;
+    border-radius: 999px;
+    box-shadow: 0 6px 28px rgba(0,0,0,0.7),
+                0 0 0 1px rgba(203,166,247,0.08);
+    white-space: nowrap;
+    transition: border-color 0.2s;
+  }
+  .bar:hover { border-color: #6c7086; }
+
+  /* Extension label */
+  .brand {
+    font-size: 13px;
+    line-height: 1;
+    color: #cba6f7;
+    flex-shrink: 0;
+    margin-right: 2px;
+  }
+
+  /* Status text */
+  .lbl {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #cdd6f4;
+    min-width: 46px;
+    text-align: left;
+    transition: color 0.15s;
+  }
+  .lbl.paused { color: #f9e2af; }
+
+  /* Divider */
+  .sep {
+    width: 1px;
+    height: 14px;
+    background: #313244;
+    flex-shrink: 0;
+    margin: 0 2px;
+  }
+
+  /* Buttons */
+  .btn {
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    outline: none;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-pp {
+    font-size: 14px;
+    color: #cba6f7;
+  }
+  .btn-pp:hover { background: rgba(203,166,247,0.12); }
+  .btn-close {
+    font-size: 10px;
+    color: #585b70;
+    font-weight: 700;
+  }
+  .btn-close:hover { background: rgba(243,139,168,0.14); color: #f38ba8; }
+
+  /* ── Hint toast ── */
+  .hint-bar {
+    padding: 8px 14px;
+    background: #1e1e2e;
+    border: 1px solid #45475a;
+    border-radius: 999px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.55);
+    font-size: 12px;
+    font-weight: 600;
+    color: #a6adc8;
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+  }
+`;
 
 function ensureOverlay() {
-  // Re-attach if page JS removed us from the DOM
+  // Re-attach if a page framework removed our host node
   if (overlayHost && !document.contains(overlayHost)) {
     (document.body || document.documentElement).appendChild(overlayHost);
   }
@@ -134,7 +199,11 @@ function ensureOverlay() {
 
   overlayHost   = document.createElement("div");
   overlayShadow = overlayHost.attachShadow({ mode: "closed" });
-  buildOverlayDOM(overlayShadow);
+
+  const style = document.createElement("style");
+  style.textContent = OVERLAY_CSS;
+  overlayShadow.appendChild(style);
+
   (document.body || document.documentElement).appendChild(overlayHost);
   return overlayShadow;
 }
@@ -142,11 +211,9 @@ function ensureOverlay() {
 function removeOverlay() {
   if (!overlayHost) return;
   overlayHost.remove();
-  overlayHost   = null;
-  overlayShadow = null;
+  overlayHost = overlayShadow = null;
 }
 
-// Show a brief toast (e.g. "Select text first") that auto-dismisses
 let _hintTimer = null;
 function showHint(msg) {
   const shadow = ensureOverlay();
@@ -161,10 +228,9 @@ function showHint(msg) {
   _hintTimer = setTimeout(() => {
     bar.remove();
     if (!shadow.querySelector(".bar")) removeOverlay();
-  }, 2000);
+  }, 2500);
 }
 
-// Build or update the media-controls bar
 function updateOverlay(isPlaying, isPaused) {
   if (!isPlaying && !isPaused) {
     if (overlayHost && !overlayShadow?.querySelector(".hint-bar")) removeOverlay();
@@ -176,24 +242,38 @@ function updateOverlay(isPlaying, isPaused) {
 
   let bar = shadow.querySelector(".bar");
   if (!bar) {
-    // ── Build bar structure ──
-    const btnPP = document.createElement("button");
-    btnPP.className = "btn btn-pp";
-    btnPP.title = "Pause";
-    btnPP.addEventListener("click", () => chrome.runtime.sendMessage({ type: "keyboard-pause" }));
+    const brand  = document.createElement("span");
+    brand.className = "brand";
+    brand.textContent = "🔊";
 
-    const lbl = document.createElement("span");
+    const btnPP  = document.createElement("button");
+    btnPP.className = "btn btn-pp";
+    btnPP.addEventListener("click", () => {
+      _localPaused = !_localPaused;
+      updateOverlay(_localPlaying, _localPaused); // instant update
+      chrome.runtime.sendMessage({ type: "keyboard-pause" });
+    });
+
+    const lbl    = document.createElement("span");
     lbl.className = "lbl";
+
+    const sep    = document.createElement("span");
+    sep.className = "sep";
 
     const btnClose = document.createElement("button");
     btnClose.className = "btn btn-close";
     btnClose.title = "Stop";
     btnClose.textContent = "✕";
-    btnClose.addEventListener("click", () => chrome.runtime.sendMessage({ type: "stop-all" }));
+    btnClose.addEventListener("click", () => {
+      _localPlaying = false;
+      _localPaused  = false;
+      chrome.runtime.sendMessage({ type: "stop-all" });
+      removeOverlay();
+    });
 
     bar = document.createElement("div");
     bar.className = "bar";
-    bar.append(btnPP, lbl, btnClose);
+    bar.append(brand, btnPP, lbl, sep, btnClose);
     shadow.appendChild(bar);
   }
 
@@ -204,17 +284,23 @@ function updateOverlay(isPlaying, isPaused) {
     btnPP.textContent = "▶";
     btnPP.title       = "Resume";
     lbl.textContent   = "Paused";
+    lbl.className     = "lbl paused";
   } else {
     btnPP.textContent = "⏸";
     btnPP.title       = "Pause";
     lbl.textContent   = "Playing";
+    lbl.className     = "lbl";
   }
 }
 
-// Poll every second for playback state
+// Poll background every second — source of truth, corrects optimistic state if needed
 setInterval(() => {
   chrome.runtime.sendMessage({ type: "get-playback-state" }, (resp) => {
     if (chrome.runtime.lastError || !resp) return;
+    // Only update local state from poll if it contradicts optimistic state
+    // (e.g. audio ended naturally, or was stopped from another tab)
+    _localPlaying = resp.isPlaying;
+    _localPaused  = resp.isPaused;
     updateOverlay(resp.isPlaying, resp.isPaused);
   });
 }, 1000);

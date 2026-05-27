@@ -731,8 +731,16 @@ function comboFromEvent(e) {
   if (e.ctrlKey)  parts.push("Ctrl");
   if (e.shiftKey) parts.push("Shift");
   if (e.metaKey)  parts.push("Meta");
-  const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
-  if (!["Alt", "Control", "Shift", "Meta"].includes(e.key)) parts.push(key);
+  // Use e.code (physical key position) not e.key (character).
+  // On non-US keyboards / AltGr active, Alt+R produces e.key="®" — e.code is always "KeyR".
+  // Must match the format produced by content.js comboFromEvent.
+  if (!["Alt", "Control", "Shift", "Meta"].includes(e.key)) {
+    const keyName =
+      e.code.startsWith("Key")   ? e.code.slice(3)  :
+      e.code.startsWith("Digit") ? e.code.slice(5)  :
+      e.code;
+    parts.push(keyName);
+  }
   return parts.join("+");
 }
 
