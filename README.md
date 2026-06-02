@@ -36,7 +36,7 @@ piper-tts/
 ### Step 1 — Clone or download this repo
 
 ```bash
-git clone https://github.com/n8watkins/piper-tts.git
+git clone https://github.com/n8watkins/local-tts-reader.git piper-tts
 cd piper-tts
 ```
 
@@ -194,7 +194,7 @@ Chrome Manifest V3 service workers cannot play audio directly, so Piper audio pl
 
 ## Tray Integration
 
-If you use the [Piper TTS tray helper](https://github.com/n8watkins/piper-tts) on Windows, the local Piper server can be auto-started when you log in and its status is shown in the system tray.
+If you use the [Piper TTS tray helper](https://github.com/n8watkins/local-tts-reader) on Windows, the local Piper server can be auto-started when you log in and its status is shown in the system tray.
 
 ---
 
