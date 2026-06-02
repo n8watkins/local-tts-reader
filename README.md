@@ -1,4 +1,4 @@
-# Local TTS Reader
+# Piper TTS
 
 A Chrome extension that lets you highlight text on any webpage, right-click it, and have it read aloud using a fully local [Piper TTS](https://github.com/rhasspy/piper) model running on your machine — no cloud, no API keys, no data leaves your computer.
 
@@ -9,7 +9,7 @@ A browser TTS fallback is also built in, so it works instantly with no server se
 ## What's in this repo
 
 ```
-local-tts-reader/
+piper-tts/
 ├── extension/              Chrome Manifest V3 extension
 │   ├── manifest.json
 │   ├── background.js       Service worker: context menu, routing
@@ -36,8 +36,8 @@ local-tts-reader/
 ### Step 1 — Clone or download this repo
 
 ```bash
-git clone https://github.com/n8watkins/local-tts-reader.git
-cd local-tts-reader
+git clone https://github.com/n8watkins/piper-tts.git
+cd piper-tts
 ```
 
 Or download the ZIP from GitHub and extract it.
@@ -107,7 +107,7 @@ npm start
 
 You should see:
 ```
-🔊 Local Piper TTS Server
+🔊 Piper TTS Local Server
    Running at http://127.0.0.1:5050
 ```
 
@@ -194,7 +194,7 @@ Chrome Manifest V3 service workers cannot play audio directly, so Piper audio pl
 
 ## Tray Integration
 
-If you use the [n8scripts tray](https://github.com/n8watkins/local-tts-reader) on Windows, the Piper server can be auto-started when you log in and its status is shown in the system tray.
+If you use the [Piper TTS tray helper](https://github.com/n8watkins/piper-tts) on Windows, the local Piper server can be auto-started when you log in and its status is shown in the system tray.
 
 ---
 
@@ -237,8 +237,12 @@ If you use the [n8scripts tray](https://github.com/n8watkins/local-tts-reader) o
 
 ## Credits
 
-- [Piper TTS](https://github.com/rhasspy/piper) — fast, offline neural TTS by rhasspy  
+- [Piper TTS](https://github.com/rhasspy/piper) — fast, offline neural TTS by rhasspy
 - [Piper voices on HuggingFace](https://huggingface.co/rhasspy/piper-voices) — free English voice models  
 - Chrome Offscreen Documents API (MV3)
+
+Piper TTS runs locally: the Chrome extension sends selected text to your own
+localhost server, which invokes your local Piper executable and installed voice
+models. No text is sent to a hosted API by this project.
 
 MIT License — free to use, fork, and share.

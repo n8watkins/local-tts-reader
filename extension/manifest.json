@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Local TTS Reader",
+  "name": "Piper TTS",
   "version": "1.0.6",
-  "description": "Highlight text, right-click, and hear it read aloud using local Piper TTS — no cloud, no API keys.",
+  "description": "Highlight text, right-click, and hear it read aloud with local Piper voices — no cloud, no API keys.",
   "permissions": [
     "contextMenus",
     "tts",
@@ -24,7 +24,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Local TTS Reader"
+    "default_title": "Piper TTS"
   },
   "options_ui": {
     "page": "options.html",

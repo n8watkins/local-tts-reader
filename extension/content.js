@@ -1,4 +1,4 @@
-// ─── Local TTS Reader — Content Script ───────────────────────────────────────
+// ─── Piper TTS — Content Script ──────────────────────────────────────────────
 // Injected into every webpage.
 //   1. Keyboard shortcuts → background.js
 //   2. Floating "Now Playing" overlay (shadow DOM, bottom-right corner)

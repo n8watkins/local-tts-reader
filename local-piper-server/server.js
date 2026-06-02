@@ -1,5 +1,5 @@
 /**
- * Local Piper TTS Server
+ * Piper TTS Local Server
  *
  * Runs on http://127.0.0.1:5050
  * POST /tts  { "text": "..." }  → audio/wav
@@ -277,7 +277,7 @@ async function cleanOutputDir() {
 (async () => {
   await cleanOutputDir();
   app.listen(PORT, HOST, () => {
-    console.log(`\n🔊 Local Piper TTS Server v${version}`);
+    console.log(`\n🔊 Piper TTS Local Server v${version}`);
     console.log(`   Running at http://${HOST}:${PORT}`);
     console.log(`   Health:  GET  http://${HOST}:${PORT}/health`);
     console.log(`   TTS:     POST http://${HOST}:${PORT}/tts`);

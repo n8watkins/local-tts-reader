@@ -1,5 +1,5 @@
 {
-  "name": "local-piper-tts-server",
+  "name": "piper-tts-server",
   "version": "1.0.0",
   "description": "Local Express server that calls Piper TTS and returns WAV audio",
   "main": "server.js",

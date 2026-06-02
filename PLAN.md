@@ -1,4 +1,4 @@
-# Local TTS Reader — v1.0 Implementation Plan
+# Piper TTS — v1.0 Implementation Plan
 
 This document is a complete, self-contained plan for a fresh Claude context.
 Start by reading all files listed under "Key files" before touching anything.
