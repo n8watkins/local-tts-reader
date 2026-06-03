@@ -59,10 +59,10 @@ You'll see a 🔊 icon appear in your Chrome toolbar.
 
 ### Step 3 — Download Piper TTS
 
-Piper is a fast, offline text-to-speech engine. Download the Windows binary:
+Piper is a fast, offline text-to-speech engine. This repo is currently configured for the Windows Piper binary:
 
 1. Go to the [Piper releases page](https://github.com/rhasspy/piper/releases/latest)
-2. Download `piper_windows_amd64.zip` (or the appropriate build for your OS)
+2. Download `piper_windows_amd64.zip`
 3. Extract it — you'll get a folder containing `piper.exe` and some DLL files
 4. Copy **all** the extracted files into:
    ```
@@ -118,8 +118,8 @@ The server must be running whenever you want to use local TTS.
 ### Step 6 — Verify in Chrome
 
 1. Click the 🔊 icon in your Chrome toolbar
-2. The popup should show **Piper Online ✓** (green dot)
-3. If it shows offline, make sure `npm start` is running and check for errors
+2. The status dot should turn green when the local server is reachable
+3. If it stays red/offline, make sure `npm start` is running and check for errors
 
 ---
 
@@ -149,13 +149,14 @@ You can change these shortcuts in Settings.
 
 ## Settings Page
 
-The settings page (⚙ gear icon) has four tabs:
+The settings page (⚙ gear icon) has five tabs:
 
 | Tab | What you can do |
 |-----|-----------------|
 | **Profiles** | Create, edit, and delete named voice presets (up to 5). Each profile stores a voice, speed, and volume. |
 | **Voices** | Browse installed voices, test them, mark favorites (up to 5), or delete them from disk. |
 | **Settings** | Toggle the browser TTS fallback when Piper is offline. |
+| **About** | See how the extension routes selected text through the local server and offscreen player. |
 | **Credits** | Piper credits and links back to this README. |
 
 ---

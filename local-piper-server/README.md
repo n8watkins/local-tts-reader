@@ -34,8 +34,8 @@ local-piper-server/
 
 From [huggingface.co/rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main), download:
 
-- `en_US-amy-medium.onnx`
-- `en_US-amy-medium.onnx.json`
+- `en_US-ryan-high.onnx`
+- `en_US-ryan-high.onnx.json`
 
 Place both files here:
 
@@ -43,8 +43,8 @@ Place both files here:
 local-piper-server/
   piper/
     voices/
-      en_US-amy-medium.onnx       ← voice model
-      en_US-amy-medium.onnx.json  ← voice config
+      en_US-ryan-high.onnx       ← voice model
+      en_US-ryan-high.onnx.json  ← voice config
 ```
 
 Other good English voices to try:
@@ -73,7 +73,7 @@ You should see:
 Returns `200 OK` if the server is running.
 
 ```json
-{ "status": "ok", "version": "0.3.0" }
+{ "status": "ok", "version": "1.0.0" }
 ```
 
 ### `POST /tts`
@@ -84,11 +84,11 @@ Generate speech from text.
 ```json
 {
   "text": "Hello, this is a test.",
-  "voice": "en_US-amy-medium.onnx"
+  "voice": "en_US-ryan-high.onnx"
 }
 ```
 
-`voice` is optional — defaults to `en_US-amy-medium.onnx`.
+`voice` is optional — defaults to `en_US-ryan-high.onnx`.
 
 **Response:** `audio/wav` binary stream.
 
