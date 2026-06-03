@@ -17,6 +17,7 @@ local-piper-server/output/*.mp3
 .env
 .env.local
 .env.*.local
+.local-ops.yaml
 
 # OS
 .DS_Store
