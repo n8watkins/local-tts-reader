@@ -82,7 +82,7 @@ npm run start:windows:bg
 npm run stop:windows:bg
 ```
 
-The background wrapper follows the same shape as Nate's tray-managed modules: single instance guard, PID files, and logs in `local-piper-server/logs/`. A tray host can call `scripts/start-background-windows.ps1` and `scripts/stop-background-windows.ps1` instead of embedding server logic.
+The background wrapper is intentionally small: single instance guard, PID files, and logs in `local-piper-server/logs/`. A tray host can call `scripts/start-background-windows.ps1` and `scripts/stop-background-windows.ps1` instead of embedding server logic.
 
 Minimal Windows tray:
 

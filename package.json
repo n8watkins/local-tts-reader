@@ -1,0 +1,19 @@
+{
+  "name": "piper-tts",
+  "version": "1.0.6",
+  "private": true,
+  "scripts": {
+    "build": "node tools/build-extension-ui.mjs",
+    "screenshots": "node tools/capture-screenshots.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

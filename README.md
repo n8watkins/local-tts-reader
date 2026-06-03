@@ -2,7 +2,7 @@
 
 A Chrome extension that lets you highlight text on any webpage, right-click it, and have it read aloud using a fully local [Piper TTS](https://github.com/rhasspy/piper) model running on your machine — no cloud, no API keys, no data leaves your computer.
 
-A browser TTS fallback is also built in, so it works instantly with no server setup.
+A browser TTS fallback is also built in, so it works instantly with no server setup. The popup and options page are built with React and bundled into the extension.
 
 <img src="screenshots/piper-icon.png" alt="Piper TTS extension icon" width="96">
 
@@ -22,18 +22,29 @@ A browser TTS fallback is also built in, so it works instantly with no server se
 
 <img src="screenshots/options-credits.png" alt="Credits tab" width="560">
 
+Regenerate these images from WSL with Windows Chrome. The script follows the same pattern used by TubeVault: it serves the extension UI locally, starts Windows Chrome with remote debugging, drives it with Puppeteer, and writes the popup plus every options tab to `screenshots/`.
+
+```bash
+npm install
+npm run screenshots
+```
+
 ---
 
 ## What's in this repo
 
 ```
 piper-tts/
+├── package.json             React UI build + screenshot scripts
+├── tools/                   esbuild and Puppeteer screenshot helpers
 ├── extension/              Chrome Manifest V3 extension
 │   ├── manifest.json
 │   ├── background.js       Service worker: context menu, routing
 │   ├── offscreen.html/.js  Hidden page that plays Piper audio (MV3 requirement)
-│   ├── popup.html/.js/.css Toolbar popup — profile switcher & quick controls
-│   ├── options.html/.js/.css Full settings page (profiles, voices, credits)
+│   ├── src/                React source for popup and options
+│   ├── dist/               Built React bundles loaded by Chrome
+│   ├── popup.html/.css     Toolbar popup shell + styles
+│   ├── options.html/.css   Full settings page shell + styles
 │   └── icons/
 │
 └── local-piper-server/     Local Node.js server that calls Piper
@@ -72,6 +83,13 @@ Or download the ZIP from GitHub and extract it.
 You'll see the Piper TTS icon appear in your Chrome toolbar.
 
 > **You can stop here** and the extension will work right now using your browser's built-in voice. To get high-quality local neural TTS, continue with steps 3–6.
+
+The repo includes the built React files under `extension/dist/`, so you do not need a build step just to load the extension. If you edit `extension/src/`, rebuild the popup and options bundles from the repo root:
+
+```bash
+npm install
+npm run build
+```
 
 ---
 
