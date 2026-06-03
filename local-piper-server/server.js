@@ -1,12 +1,12 @@
 /**
  * Piper TTS Local Server
  *
- * Runs on http://127.0.0.1:5050
+ * Runs on http://127.0.0.1:5050 by default
  * POST /tts  { "text": "..." }  → audio/wav
  * GET  /health                  → 200 OK
  *
  * Requires:
- *   piper/piper.exe
+ *   piper/piper.exe on Windows, or piper/piper on macOS/Linux
  *   piper/voices/<model>.onnx
  *   piper/voices/<model>.onnx.json
  */
@@ -21,15 +21,18 @@ const { spawn, exec } = require("child_process");
 const { version } = require("./package.json");
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-const PORT       = 5050;
-const HOST       = "127.0.0.1"; // localhost only — never expose publicly
+const PORT       = Number(process.env.PORT || 5050);
+const HOST       = process.env.HOST || "127.0.0.1"; // localhost only by default
 const MAX_CHARS  = 8000;        // reasonable limit per request
 const TIMEOUT_MS = 60_000;      // kill Piper if it hangs
 
-// Paths — adjust VOICE_MODEL if you use a different voice file
-const PIPER_EXE  = path.join(__dirname, "piper", "piper.exe");
-const VOICE_DIR  = path.join(__dirname, "piper", "voices");
-const OUTPUT_DIR = path.join(__dirname, "output");
+// Paths can be overridden for non-standard installs or macOS/Linux setups.
+const DEFAULT_PIPER_BIN = process.platform === "win32"
+  ? path.join(__dirname, "piper", "piper.exe")
+  : path.join(__dirname, "piper", "piper");
+const PIPER_BIN  = process.env.PIPER_BIN || DEFAULT_PIPER_BIN;
+const VOICE_DIR  = process.env.VOICE_DIR || path.join(__dirname, "piper", "voices");
+const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(__dirname, "output");
 
 // Default voice model (change to match your downloaded .onnx file)
 const DEFAULT_VOICE = "en_US-ryan-high.onnx";
@@ -79,7 +82,7 @@ function runPiper({ text, outputPath, voiceModel }) {
 
     let proc;
     try {
-      proc = spawn(PIPER_EXE, args);
+      proc = spawn(PIPER_BIN, args);
     } catch (err) {
       return reject(new Error(`Failed to spawn Piper: ${err.message}`));
     }
@@ -186,8 +189,8 @@ app.post("/tts", async (req, res) => {
     if (err.message.includes("spawn") || err.message.includes("ENOENT")) {
       return res.status(500).json({
         error: "Piper executable not found.",
-        details: `Expected at: ${PIPER_EXE}`,
-        hint: "Download Piper from https://github.com/rhasspy/piper/releases and place piper.exe in the piper/ folder."
+        details: `Expected at: ${PIPER_BIN}`,
+        hint: "Download Piper from https://github.com/rhasspy/piper/releases and place the executable in the piper/ folder, or set PIPER_BIN."
       });
     }
 
@@ -282,7 +285,7 @@ async function cleanOutputDir() {
     console.log(`   Health:  GET  http://${HOST}:${PORT}/health`);
     console.log(`   TTS:     POST http://${HOST}:${PORT}/tts`);
     console.log(`   Voices:  GET  http://${HOST}:${PORT}/voices`);
-    console.log(`\n   Piper exe: ${PIPER_EXE}`);
+    console.log(`\n   Piper bin: ${PIPER_BIN}`);
     console.log(`   Voice dir: ${VOICE_DIR}`);
     console.log(`   Default voice: ${DEFAULT_VOICE}`);
     console.log(`\n   Press Ctrl+C to stop.\n`);

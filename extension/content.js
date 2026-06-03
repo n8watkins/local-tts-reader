@@ -159,6 +159,34 @@ const OVERLAY_CSS = `
   }
   .lbl.paused { color: #f9e2af; }
 
+  .prog {
+    width: 42px;
+    height: 4px;
+    background: #45475a;
+    border-radius: 999px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .prog-fill {
+    display: block;
+    width: 0%;
+    height: 100%;
+    background: #cba6f7;
+    border-radius: inherit;
+    transition: width 0.2s ease;
+  }
+
+  .prog-fill.is-indeterminate {
+    width: 45%;
+    animation: tts-progress-pulse 1s ease-in-out infinite alternate;
+  }
+
+  @keyframes tts-progress-pulse {
+    from { transform: translateX(-70%); }
+    to   { transform: translateX(130%); }
+  }
+
   /* Divider */
   .sep {
     width: 1px;
@@ -291,7 +319,7 @@ function adjustVolume(delta) {
   });
 }
 
-function updateOverlay(isPlaying, isPaused) {
+function updateOverlay(isPlaying, isPaused, progress = null) {
   if (!isPlaying && !isPaused) {
     if (overlayHost && !overlayShadow?.querySelector(".hint-bar")) removeOverlay();
     return;
@@ -319,6 +347,12 @@ function updateOverlay(isPlaying, isPaused) {
     // ── Status label ──
     const lbl = document.createElement("span");
     lbl.className = "lbl";
+
+    const prog = document.createElement("span");
+    prog.className = "prog";
+    const progFill = document.createElement("span");
+    progFill.className = "prog-fill";
+    prog.appendChild(progFill);
 
     // ── Separator ──
     const sep1 = document.createElement("span");
@@ -359,16 +393,28 @@ function updateOverlay(isPlaying, isPaused) {
 
     bar = document.createElement("div");
     bar.className = "bar";
-    bar.append(brand, btnPP, lbl, sep1, btnMinus, volVal, btnPlus, sep2, btnClose);
+    bar.append(brand, btnPP, lbl, prog, sep1, btnMinus, volVal, btnPlus, sep2, btnClose);
     shadow.appendChild(bar);
   }
 
   const btnPP  = bar.querySelector(".btn-pp");
   const lbl    = bar.querySelector(".lbl");
   const volVal = bar.querySelector(".vol-val");
+  const progFill = bar.querySelector(".prog-fill");
 
   // Always refresh volume display
   if (volVal) volVal.textContent = fmtVol(_currentVolume);
+
+  if (progFill) {
+    if (progress?.total > 0) {
+      const percent = Math.max(0, Math.min(1, progress.percent ?? progress.current / progress.total));
+      progFill.classList.remove("is-indeterminate");
+      progFill.style.width = Math.round(percent * 100) + "%";
+    } else {
+      progFill.style.width = "";
+      progFill.classList.add("is-indeterminate");
+    }
+  }
 
   if (isPaused) {
     btnPP.textContent = "▶";
@@ -390,6 +436,6 @@ setInterval(() => {
     _localPlaying = resp.isPlaying;
     _localPaused  = resp.isPaused;
     if (resp.volume != null) _currentVolume = resp.volume;
-    updateOverlay(resp.isPlaying, resp.isPaused);
+    updateOverlay(resp.isPlaying, resp.isPaused, resp.progress);
   });
 }, 1000);

@@ -27,7 +27,11 @@ body {
   border-bottom: 1px solid #313244;
 }
 
-.app-icon { font-size: 16px; line-height: 1; }
+.app-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
 
 .app-title {
   font-size: 14px;
@@ -238,6 +242,60 @@ body {
 
 .btn-stop       { background: #313244; color: #f38ba8; border: 1px solid #585b70; }
 .btn-stop:hover { background: #3a1e1e; border-color: #f38ba8; }
+
+/* ─── Playback Progress ─────────────────────────────────────────────────────── */
+.progress-card {
+  background: #1e1e2e;
+  border: 1px solid #313244;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.progress-status {
+  font-size: 11px;
+  font-weight: 700;
+  color: #cdd6f4;
+  flex: 1;
+}
+
+.progress-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a6adc8;
+}
+
+.progress-track {
+  height: 4px;
+  background: #45475a;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  background: #cba6f7;
+  border-radius: inherit;
+  transition: width 0.2s ease;
+}
+
+.progress-fill.is-indeterminate {
+  width: 45%;
+  animation: progress-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes progress-pulse {
+  from { transform: translateX(-70%); }
+  to   { transform: translateX(130%); }
+}
 
 /* ─── Test Error ─────────────────────────────────────────────────────────────── */
 .test-error {

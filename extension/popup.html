@@ -10,7 +10,7 @@
 
       <!-- Header -->
       <header class="app-header">
-        <span class="app-icon">🔊</span>
+        <img class="app-icon" src="icons/icon48.png" alt="" />
         <span class="app-title">Piper TTS</span>
         <span class="status-dot" id="status-dot" title="Checking…"></span>
         <span class="app-version" id="app-version"></span>
@@ -61,6 +61,16 @@
       <div class="actions">
         <button class="btn btn-test" id="test-btn">▶ Test</button>
         <button class="btn btn-stop" id="stop-btn">■ Stop</button>
+      </div>
+
+      <div class="progress-card hidden" id="progress-card">
+        <div class="progress-row">
+          <span class="progress-status" id="progress-status">Reading</span>
+          <span class="progress-label" id="progress-label"></span>
+        </div>
+        <div class="progress-track" id="progress-track">
+          <span class="progress-fill" id="progress-fill"></span>
+        </div>
       </div>
 
       <p class="test-error hidden" id="test-error"></p>

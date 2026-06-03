@@ -27,7 +27,11 @@ body {
   margin-bottom: 0;
 }
 
-.page-icon { font-size: 24px; line-height: 1; flex-shrink: 0; }
+.page-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
 
 .page-header-body { flex: 1; min-width: 0; }
 

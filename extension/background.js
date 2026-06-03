@@ -98,6 +98,14 @@ function speakWithBrowser(text, settings) {
   _isPausedPiper  = false;
   _playbackEngine = "browser";
   _currentVolume  = Math.min(1, settings.volume ?? 1.0); // browser TTS capped at 1
+  _playbackProgress = {
+    active: true,
+    engine: "browser",
+    current: 0,
+    total: 0,
+    percent: null,
+    label: "Browser voice"
+  };
   setStopMenuVisible(true);
   chrome.tts.speak(text, {
     rate:   settings.rate   ?? 1.0,
@@ -109,6 +117,7 @@ function speakWithBrowser(text, settings) {
         _isPlayingPiper = false;
         _isPausedPiper  = false;
         _playbackEngine = null;
+        resetProgress();
         setStopMenuVisible(false);
       }
       if (e.type === "error") {
@@ -116,6 +125,7 @@ function speakWithBrowser(text, settings) {
         _isPlayingPiper = false;
         _isPausedPiper  = false;
         _playbackEngine = null;
+        resetProgress();
         setStopMenuVisible(false);
       }
     }
@@ -146,6 +156,11 @@ let _isPausedPiper     = false;
 let _playbackEngine    = null; // "piper" or "browser"
 let _playingSourceTabId = null; // tab that triggered the current playback
 let _currentVolume     = 1.0;  // cached from active profile; sent to content script overlay
+let _playbackProgress  = { active: false, engine: null, current: 0, total: 0, percent: null, label: "" };
+
+function resetProgress() {
+  _playbackProgress = { active: false, engine: null, current: 0, total: 0, percent: null, label: "" };
+}
 
 // ─── Piper TTS ───────────────────────────────────────────────────────────────
 async function speakWithPiper(text, settings) {
@@ -156,6 +171,14 @@ async function speakWithPiper(text, settings) {
   _isPausedPiper  = false;
   _playbackEngine = "piper";
   _currentVolume  = settings.volume ?? 1.0;
+  _playbackProgress = {
+    active: true,
+    engine: "piper",
+    current: 0,
+    total: 0,
+    percent: 0,
+    label: "Starting"
+  };
   setStopMenuVisible(true);
   try {
     await ensureOffscreenDocument();
@@ -164,6 +187,7 @@ async function speakWithPiper(text, settings) {
     // don't get stuck in "Playing" state forever.
     _isPlayingPiper = false;
     _playbackEngine = null;
+    resetProgress();
     setStopMenuVisible(false);
     throw err;
   }
@@ -179,6 +203,7 @@ async function speakWithPiper(text, settings) {
     console.error("speak-text delivery failed:", err);
     _isPlayingPiper = false; // delivery failed — no playback-ended will ever arrive
     _playbackEngine = null;
+    resetProgress();
     setStopMenuVisible(false);
   });
 }
@@ -189,6 +214,7 @@ async function stopAll() {
   _isPausedPiper     = false;
   _playbackEngine    = null;
   _playingSourceTabId = null;
+  resetProgress();
   _piperOnlineCache.expiresAt = 0; // invalidate cache so next read checks fresh
   await setStopMenuVisible(false);
   chrome.tts.stop();
@@ -270,7 +296,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     _isPlayingPiper = false;
     _isPausedPiper  = false;
     _playbackEngine = null;
+    resetProgress();
     setStopMenuVisible(false);
+    return;
+  }
+
+  if (message.type === "playback-progress") {
+    const current = Math.max(0, Number(message.current) || 0);
+    const total = Math.max(0, Number(message.total) || 0);
+    _playbackProgress = {
+      active: true,
+      engine: message.engine || _playbackEngine || "piper",
+      current,
+      total,
+      percent: typeof message.percent === "number" ? Math.max(0, Math.min(1, message.percent)) : null,
+      label: message.label || (total > 0 ? `${current}/${total}` : "")
+    };
     return;
   }
 
@@ -282,7 +323,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({
       isPlaying: _isPlayingPiper && isSource,
       isPaused:  _isPausedPiper,
-      volume:    _currentVolume
+      volume:    _currentVolume,
+      progress:  _playbackProgress
     });
     return; // synchronous
   }

@@ -17,18 +17,21 @@ npm install
 
 ### 2. Download Piper
 
-Go to [github.com/rhasspy/piper/releases](https://github.com/rhasspy/piper/releases) and download the Windows build:
+Go to [github.com/rhasspy/piper/releases](https://github.com/rhasspy/piper/releases) and download the build for your OS. On Windows, use:
 
 - `piper_windows_amd64.zip`
 
-Extract it and place `piper.exe` here:
+Extract it and place the executable here:
 
 ```
 local-piper-server/
   piper/
-    piper.exe       ← put it here
+    piper.exe       ← Windows
+    piper           ← macOS/Linux
     voices/
 ```
+
+For a different location, start the server with `PIPER_BIN=/path/to/piper npm start`.
 
 ### 3. Download a voice model
 
@@ -63,6 +66,18 @@ You should see:
 🔊 Piper TTS Local Server
    Running at http://127.0.0.1:5050
 ```
+
+---
+
+## Configuration
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `PORT` | `5050` | Local server port. |
+| `HOST` | `127.0.0.1` | Bind address. Keep this as localhost unless you know what you are doing. |
+| `PIPER_BIN` | `piper/piper.exe` on Windows, `piper/piper` elsewhere | Piper executable path. |
+| `VOICE_DIR` | `piper/voices` | Folder containing `.onnx` and `.onnx.json` voice files. |
+| `OUTPUT_DIR` | `output` | Temporary WAV output folder. |
 
 ---
 
@@ -128,7 +143,7 @@ start test.wav
 ## Troubleshooting
 
 **"Piper executable not found"**  
-→ Make sure `piper/piper.exe` exists. Download from the Piper releases page.
+→ Make sure `piper/piper.exe` exists on Windows or `piper/piper` exists on macOS/Linux. If Piper is elsewhere, set `PIPER_BIN`.
 
 **"Piper exited with code 1"**  
 → Check that your `.onnx` and `.onnx.json` files are both present in `piper/voices/`.

@@ -17,6 +17,10 @@ const stopBtn          = document.getElementById("stop-btn");
 const testError        = document.getElementById("test-error");
 const statusDot        = document.getElementById("status-dot");
 const settingsBtn      = document.getElementById("settings-btn");
+const progressCard     = document.getElementById("progress-card");
+const progressStatus   = document.getElementById("progress-status");
+const progressLabel    = document.getElementById("progress-label");
+const progressFill     = document.getElementById("progress-fill");
 const newProfileForm   = document.getElementById("new-profile-form");
 const newProfileInput  = document.getElementById("new-profile-name");
 const newProfileSave   = document.getElementById("new-profile-save");
@@ -198,7 +202,42 @@ testBtn.addEventListener("click", () => {
 // ─── Stop ─────────────────────────────────────────────────────────────────────
 stopBtn.addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "stop-all" });
+  renderPlaybackState({ isPlaying: false, isPaused: false, progress: null });
 });
+
+// ─── Playback Progress ───────────────────────────────────────────────────────
+function renderPlaybackState(state) {
+  const progress = state?.progress;
+  const show = state?.isPlaying || progress?.active;
+
+  if (!show) {
+    progressCard.classList.add("hidden");
+    progressFill.style.width = "0%";
+    progressFill.classList.remove("is-indeterminate");
+    return;
+  }
+
+  progressCard.classList.remove("hidden");
+  progressStatus.textContent = state.isPaused ? "Paused" : "Reading";
+
+  if (progress?.total > 0) {
+    const percent = Math.max(0, Math.min(1, progress.percent ?? progress.current / progress.total));
+    progressLabel.textContent = progress.label || `${progress.current}/${progress.total}`;
+    progressFill.classList.remove("is-indeterminate");
+    progressFill.style.width = Math.round(percent * 100) + "%";
+  } else {
+    progressLabel.textContent = progress?.label || "Browser voice";
+    progressFill.style.width = "";
+    progressFill.classList.add("is-indeterminate");
+  }
+}
+
+function pollPlaybackState() {
+  chrome.runtime.sendMessage({ type: "get-playback-state" }, (resp) => {
+    if (chrome.runtime.lastError || !resp) return;
+    renderPlaybackState(resp);
+  });
+}
 
 // ─── Error Display ────────────────────────────────────────────────────────────
 let errTimer = null;
@@ -256,6 +295,8 @@ async function init() {
 
   updateProfileUI();
   checkStatus();
+  pollPlaybackState();
+  setInterval(pollPlaybackState, 1000);
 }
 
 init();

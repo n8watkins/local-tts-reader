@@ -13,6 +13,17 @@ let isPaused  = false; // true while audio is paused mid-queue
 let playGeneration = 0; // incremented on each new speak request; stale queues self-terminate
 let currentVolume = 1.0; // updated by speak-text and set-volume; used for per-chunk initial gain
 
+function sendProgress(current, total, label = "") {
+  chrome.runtime.sendMessage({
+    type: "playback-progress",
+    engine: "piper",
+    current,
+    total,
+    percent: total > 0 ? current / total : null,
+    label
+  }).catch(() => {});
+}
+
 // ─── Chunk Splitter ───────────────────────────────────────────────────────────
 function splitIntoChunks(text, maxLength = 350) {
   // C3 fix: was \S+$ (matched only the final word); [^.!?]+$ captures the full
@@ -196,13 +207,17 @@ function stopAll() {
 async function playQueue(chunks, piperUrl, volume, rate, voice, generation) {
   isPlaying = true;
   playbackQueue = [...chunks];
+  const totalChunks = chunks.length;
+  sendProgress(0, totalChunks, "Starting");
 
   const live = () => isPlaying && playGeneration === generation;
 
   while (playbackQueue.length > 0 && live()) {
     const chunk = playbackQueue.shift();
+    const currentChunk = totalChunks - playbackQueue.length;
 
     try {
+      sendProgress(currentChunk, totalChunks, `${currentChunk}/${totalChunks}`);
       const blob = await fetchPiperAudio(chunk, piperUrl, voice);
 
       if (!live()) break;

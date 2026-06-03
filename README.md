@@ -4,11 +4,23 @@ A Chrome extension that lets you highlight text on any webpage, right-click it, 
 
 A browser TTS fallback is also built in, so it works instantly with no server setup.
 
+<img src="screenshots/piper-icon.png" alt="Piper TTS extension icon" width="96">
+
 ## Screenshots
 
 <img src="screenshots/popup.png" alt="Piper TTS popup showing profile, speed, volume, test, and stop controls" width="320">
 
-<img src="screenshots/options.png" alt="Piper TTS options page showing profile management" width="560">
+### Options Views
+
+<img src="screenshots/options-profiles.png" alt="Profiles settings tab" width="560">
+
+<img src="screenshots/options-voices.png" alt="Voices settings tab" width="560">
+
+<img src="screenshots/options-settings.png" alt="Settings tab with fallback and shortcuts" width="560">
+
+<img src="screenshots/options-about.png" alt="About tab explaining how Piper TTS works" width="560">
+
+<img src="screenshots/options-credits.png" alt="Credits tab" width="560">
 
 ---
 
@@ -28,7 +40,7 @@ piper-tts/
     ├── server.js
     ├── package.json
     ├── piper/
-    │   ├── piper.exe       ← you download this (see Step 3)
+    │   ├── piper(.exe)     ← you download this (see Step 3)
     │   └── voices/
     │       ├── *.onnx      ← you download these (see Step 4)
     │       └── *.onnx.json
@@ -57,7 +69,7 @@ Or download the ZIP from GitHub and extract it.
 3. Click **Load unpacked**
 4. Select the **`extension/`** folder inside this project
 
-You'll see a 🔊 icon appear in your Chrome toolbar.
+You'll see the Piper TTS icon appear in your Chrome toolbar.
 
 > **You can stop here** and the extension will work right now using your browser's built-in voice. To get high-quality local neural TTS, continue with steps 3–6.
 
@@ -65,23 +77,25 @@ You'll see a 🔊 icon appear in your Chrome toolbar.
 
 ### Step 3 — Download Piper TTS
 
-Piper is a fast, offline text-to-speech engine. This repo is currently configured for the Windows Piper binary:
+Piper is a fast, offline text-to-speech engine. Download the build for your OS:
 
 1. Go to the [Piper releases page](https://github.com/rhasspy/piper/releases/latest)
-2. Download `piper_windows_amd64.zip`
-3. Extract it — you'll get a folder containing `piper.exe` and some DLL files
+2. Download the appropriate archive, such as `piper_windows_amd64.zip`
+3. Extract it — you'll get a folder containing the Piper executable and support files
 4. Copy **all** the extracted files into:
    ```
    local-piper-server/piper/
    ```
 
-After this step your folder should look like:
+On Windows, your folder should look like:
 ```
 local-piper-server/piper/
 ├── piper.exe
 ├── espeak-ng-data/     (comes with the Piper archive)
 └── ...other DLLs
 ```
+
+On macOS/Linux, the executable is usually named `piper`. Put it at `local-piper-server/piper/piper`, or set `PIPER_BIN` to the executable path when starting the server.
 
 ---
 
@@ -100,6 +114,21 @@ Piper uses `.onnx` voice model files. Each voice has two files: a `.onnx` model 
    ```
 
 You can download multiple voices and switch between them in the extension's Settings page.
+
+### Adding voices
+
+1. Download both files for each voice:
+   - `voice-name.onnx`
+   - `voice-name.onnx.json`
+2. Put both files in:
+   ```
+   local-piper-server/piper/voices/
+   ```
+3. Start or restart the local server with `npm start`.
+4. Open the extension Settings page and go to **Voices**.
+5. Use **Test** to preview a voice, star favorites, or delete voices you no longer want.
+
+The **Open folder** button in the Voices tab opens the exact folder where voice files should be placed.
 
 ---
 
@@ -123,7 +152,7 @@ The server must be running whenever you want to use local TTS.
 
 ### Step 6 — Verify in Chrome
 
-1. Click the 🔊 icon in your Chrome toolbar
+1. Click the Piper TTS icon in your Chrome toolbar
 2. The status dot should turn green when the local server is reachable
 3. If it stays red/offline, make sure `npm start` is running and check for errors
 
@@ -200,7 +229,7 @@ background.js (service worker)
        ↓
  POST /tts → local-piper-server
        ↓
- Piper.exe → WAV audio
+ Piper executable → WAV audio
        ↓
  Web Audio API plays it
 ```
@@ -235,14 +264,15 @@ Chrome Manifest V3 service workers cannot play audio directly, so Piper audio pl
 - [x] Offscreen document audio playback (MV3 compliant)
 - [x] Long-text sentence chunking
 - [x] Offline browser TTS fallback
+- [x] Pause / resume support
+- [x] Reading progress indicator
 - [x] Named profiles (voice + speed + volume presets)
 - [x] Settings page (voices, profiles, credits)
 - [x] Multiple voice management (install, test, favorite, delete)
 - [x] Keyboard shortcut to trigger reading
-- [x] Pause / resume support
-- [ ] Reading progress indicator in popup
+- [x] Cross-platform Piper binary path configuration
 - [ ] Windows tray helper (auto-start server)
-- [ ] macOS/Linux Piper server launch script
+- [ ] macOS/Linux Piper server launch scripts and verification
 
 ### Roadmap Plan
 
@@ -254,16 +284,18 @@ Chrome Manifest V3 service workers cannot play audio directly, so Piper audio pl
 5. For browser fallback playback, show an indeterminate or elapsed-only state because Chrome's browser TTS API does not expose chunk progress.
 
 **Windows tray helper**
+This is useful for Windows users who do not want to keep a terminal open. It should be a separate helper app rather than hidden inside the extension.
+
 1. Add a small tray app that starts/stops `local-piper-server`.
 2. Poll `http://127.0.0.1:5050/health` and show online/offline state.
 3. Add a startup option for launching the server when Windows signs in.
 4. Document install, uninstall, and troubleshooting steps.
 
 **macOS/Linux server support**
-1. Make the server resolve `piper.exe` on Windows and `piper` on macOS/Linux.
-2. Add environment variables for `PIPER_BIN`, `VOICE_DIR`, and `PORT`.
-3. Add platform-specific setup notes and launch scripts.
-4. Verify voice download paths and `xdg-open`/`open` folder behavior on each platform.
+1. Add platform launch scripts for macOS and Linux.
+2. Verify Piper release archive layout on each platform.
+3. Verify voice download paths and `xdg-open`/`open` folder behavior on each platform.
+4. Add troubleshooting notes for executable permissions on macOS/Linux.
 
 ---
 
