@@ -4,9 +4,11 @@ A Chrome extension that lets you highlight text on any webpage, right-click it, 
 
 A browser TTS fallback is also built in, so it works instantly with no server setup.
 
-## Popup
+## Screenshots
 
-![Piper TTS popup showing profile, speed, volume, test, and stop controls](screenshots/popup.png)
+<img src="screenshots/popup.png" alt="Piper TTS popup showing profile, speed, volume, test, and stop controls" width="320">
+
+<img src="screenshots/options.png" alt="Piper TTS options page showing profile management" width="560">
 
 ---
 
@@ -167,19 +169,21 @@ The settings page (⚙ gear icon) has five tabs:
 
 ## Features
 
-| Feature | Browser mode | Piper mode |
-|---------|-------------|------------|
-| Works without any setup | ✅ | ❌ needs server |
-| Fully offline / no cloud | OS-dependent | ✅ always |
-| Voice quality | OS default voice | ✅ neural TTS |
-| Multiple voices | OS voices | ✅ download any Piper voice |
-| Named profiles (voice + speed + vol) | ✅ | ✅ |
+There is not a separate mode switch. The extension tries the local Piper server first. If Piper is offline and **Browser TTS fallback** is enabled, it uses Chrome's built-in `chrome.tts` voice instead.
+
+| Capability | Browser voice fallback | Local Piper voice |
+|------------|------------------------|-------------------|
+| Requires local Piper server | ❌ | ✅ |
+| Sends text to a hosted API | ❌ | ❌ |
+| Voice source | Browser / OS voices | Downloaded Piper `.onnx` voices |
+| Voice management in this app | ❌ uses browser defaults | ✅ install, favorite, test, delete |
+| Named profiles | ✅ speed + volume | ✅ voice + speed + volume |
 | Speed control | ✅ | ✅ |
-| Volume control (up to 2×) | ✅ | ✅ |
-| Long-text chunking | ✅ | ✅ |
+| Volume control | ✅ capped at browser max | ✅ up to 2× gain |
 | Stop reading | ✅ | ✅ |
-| Pause / resume | ❌ | ✅ |
-| Offline fallback to browser voice | — | ✅ optional |
+| Pause / resume | ✅ | ✅ |
+| Long selected text | Browser TTS handles playback | Extension chunks text for Piper |
+| Offline fallback behavior | This is the fallback engine | Falls back to browser voice when enabled |
 
 ---
 
@@ -239,6 +243,27 @@ Chrome Manifest V3 service workers cannot play audio directly, so Piper audio pl
 - [ ] Reading progress indicator in popup
 - [ ] Windows tray helper (auto-start server)
 - [ ] macOS/Linux Piper server launch script
+
+### Roadmap Plan
+
+**Reading progress indicator**
+1. Track total chunks and current chunk in `offscreen.js`.
+2. Send progress updates to `background.js` during Piper playback.
+3. Expose progress through the existing `get-playback-state` message.
+4. Add a compact progress bar to the popup and overlay.
+5. For browser fallback playback, show an indeterminate or elapsed-only state because Chrome's browser TTS API does not expose chunk progress.
+
+**Windows tray helper**
+1. Add a small tray app that starts/stops `local-piper-server`.
+2. Poll `http://127.0.0.1:5050/health` and show online/offline state.
+3. Add a startup option for launching the server when Windows signs in.
+4. Document install, uninstall, and troubleshooting steps.
+
+**macOS/Linux server support**
+1. Make the server resolve `piper.exe` on Windows and `piper` on macOS/Linux.
+2. Add environment variables for `PIPER_BIN`, `VOICE_DIR`, and `PORT`.
+3. Add platform-specific setup notes and launch scripts.
+4. Verify voice download paths and `xdg-open`/`open` folder behavior on each platform.
 
 ---
 

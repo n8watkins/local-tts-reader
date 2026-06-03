@@ -3,31 +3,31 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   background: #181825;
   color: #cdd6f4;
   min-height: 100vh;
-  padding: 0 0 60px;
+  padding: 0 0 44px;
 }
 
 /* ─── Page Wrapper ───────────────────────────────────────────────────────────── */
 .page {
-  max-width: 680px;
+  max-width: 620px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 16px;
 }
 
 /* ─── Page Header ────────────────────────────────────────────────────────────── */
 .page-header {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 20px 0 16px;
+  gap: 12px;
+  padding: 16px 0 13px;
   border-bottom: 1px solid #313244;
   margin-bottom: 0;
 }
 
-.page-icon { font-size: 28px; line-height: 1; flex-shrink: 0; }
+.page-icon { font-size: 24px; line-height: 1; flex-shrink: 0; }
 
 .page-header-body { flex: 1; min-width: 0; }
 
@@ -74,7 +74,7 @@ body {
   display: flex;
   gap: 0;
   border-bottom: 2px solid #313244;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 
 .tab {
@@ -82,8 +82,8 @@ body {
   border: none;
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
-  padding: 13px 22px;
-  font-size: 14px;
+  padding: 11px 16px;
+  font-size: 13px;
   font-weight: 600;
   color: #a6adc8;
   cursor: pointer;
@@ -103,11 +103,11 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .panel-heading {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   color: #cdd6f4;
   flex: 1;
@@ -119,10 +119,10 @@ body {
 }
 
 .panel-blurb {
-  font-size: 13px;
+  font-size: 12px;
   color: #a6adc8;
-  line-height: 1.6;
-  margin-bottom: 18px;
+  line-height: 1.5;
+  margin-bottom: 14px;
 }
 .panel-blurb strong { color: #cdd6f4; }
 
@@ -160,24 +160,24 @@ body {
 .create-form {
   background: #1e1e2e;
   border: 1px solid #45475a;
-  border-radius: 10px;
-  padding: 18px 20px;
-  margin-bottom: 20px;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
 }
 
 .form-title {
   font-size: 14px;
   font-weight: 700;
   color: #cba6f7;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .form-grid {
   display: grid;
-  grid-template-columns: 90px 1fr;
-  gap: 10px 16px;
+  grid-template-columns: 82px 1fr;
+  gap: 8px 12px;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .form-label {
@@ -229,12 +229,12 @@ body {
 .form-actions { display: flex; gap: 8px; }
 
 /* ─── Profile List ───────────────────────────────────────────────────────────── */
-.profile-list { display: flex; flex-direction: column; gap: 10px; }
+.profile-list { display: flex; flex-direction: column; gap: 8px; }
 
 .profile-card {
   background: #1e1e2e;
   border: 1px solid #313244;
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
   transition: border-color 0.15s;
 }
@@ -244,8 +244,8 @@ body {
 .profile-card-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
+  gap: 8px;
+  padding: 10px 12px;
 }
 
 .profile-card-name {
@@ -277,7 +277,7 @@ body {
 
 /* ─── Profile Status Button ──────────────────────────────────────────────────── */
 .profile-status-btn {
-  width: 88px;
+  width: 78px;
   flex-shrink: 0;
   text-align: center;
   padding: 5px 0;
@@ -301,8 +301,8 @@ body {
   border-radius: 6px;
   color: #6c7086;
   cursor: pointer;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -319,7 +319,7 @@ body {
 /* Inline edit form inside profile card */
 .profile-edit-form {
   border-top: 1px solid #313244;
-  padding: 16px 18px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -368,9 +368,9 @@ body {
   gap: 10px;
   background: #1e1e2e;
   border: 1px solid #313244;
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 14px;
+  border-radius: 7px;
+  padding: 7px 10px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
 }
 
@@ -398,10 +398,10 @@ body {
   background: #3a2e1e;
   border: 1px solid #6a4e2e;
   color: #f9e2af;
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 13px;
-  margin-bottom: 18px;
+  border-radius: 7px;
+  padding: 8px 12px;
+  font-size: 12px;
+  margin-bottom: 14px;
 }
 
 .favs-count {
@@ -431,18 +431,18 @@ body {
 .voice-grid {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 18px;
+  gap: 7px;
+  margin-bottom: 14px;
 }
 
 .voice-card {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   background: #1e1e2e;
   border: 1px solid #313244;
-  border-radius: 8px;
-  padding: 10px 14px;
+  border-radius: 7px;
+  padding: 8px 12px;
   transition: border-color 0.15s;
 }
 .voice-card:hover { border-color: #45475a; }
@@ -545,9 +545,9 @@ body {
 .settings-group {
   background: #1e1e2e;
   border: 1px solid #313244;
-  border-radius: 10px;
-  padding: 16px 18px;
-  margin-bottom: 14px;
+  border-radius: 8px;
+  padding: 13px 15px;
+  margin-bottom: 11px;
 }
 
 .settings-group-title {
@@ -556,7 +556,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: #a6adc8;
-  margin-bottom: 14px;
+  margin-bottom: 11px;
 }
 
 .setting-row {
@@ -612,7 +612,7 @@ body {
 .link { color: #89dceb; text-decoration: none; }
 .link:hover { text-decoration: underline; }
 
-.credits-section { margin-bottom: 26px; }
+.credits-section { margin-bottom: 20px; }
 .credits-section-title {
   font-size: 12px;
   font-weight: 700;

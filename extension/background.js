@@ -96,18 +96,28 @@ function speakWithBrowser(text, settings) {
   chrome.tts.stop();
   _isPlayingPiper = true;   // reuse the playing flag so popup + keyboard toggle work
   _isPausedPiper  = false;
+  _playbackEngine = "browser";
+  _currentVolume  = Math.min(1, settings.volume ?? 1.0); // browser TTS capped at 1
   setStopMenuVisible(true);
   chrome.tts.speak(text, {
     rate:   settings.rate   ?? 1.0,
     pitch:  1.0,
-    volume: Math.min(1, settings.volume ?? 1.0), // browser TTS capped at 1
+    volume: _currentVolume,
     enqueue: false,
     onEvent: (e) => {
       if (e.type === "end" || e.type === "interrupted" || e.type === "cancelled") {
         _isPlayingPiper = false;
+        _isPausedPiper  = false;
+        _playbackEngine = null;
         setStopMenuVisible(false);
       }
-      if (e.type === "error") console.error("tts error:", e.errorMessage);
+      if (e.type === "error") {
+        console.error("tts error:", e.errorMessage);
+        _isPlayingPiper = false;
+        _isPausedPiper  = false;
+        _playbackEngine = null;
+        setStopMenuVisible(false);
+      }
     }
   });
 }
@@ -133,6 +143,7 @@ async function checkPiperOnline() {
 // ─── Playback State ───────────────────────────────────────────────────────────
 let _isPlayingPiper    = false;
 let _isPausedPiper     = false;
+let _playbackEngine    = null; // "piper" or "browser"
 let _playingSourceTabId = null; // tab that triggered the current playback
 let _currentVolume     = 1.0;  // cached from active profile; sent to content script overlay
 
@@ -143,6 +154,7 @@ async function speakWithPiper(text, settings) {
 
   _isPlayingPiper = true;
   _isPausedPiper  = false;
+  _playbackEngine = "piper";
   _currentVolume  = settings.volume ?? 1.0;
   setStopMenuVisible(true);
   try {
@@ -151,6 +163,7 @@ async function speakWithPiper(text, settings) {
     // Unexpected offscreen creation error — reset flag so the popup/shortcut
     // don't get stuck in "Playing" state forever.
     _isPlayingPiper = false;
+    _playbackEngine = null;
     setStopMenuVisible(false);
     throw err;
   }
@@ -165,6 +178,7 @@ async function speakWithPiper(text, settings) {
   }).catch((err) => {
     console.error("speak-text delivery failed:", err);
     _isPlayingPiper = false; // delivery failed — no playback-ended will ever arrive
+    _playbackEngine = null;
     setStopMenuVisible(false);
   });
 }
@@ -173,6 +187,7 @@ async function speakWithPiper(text, settings) {
 async function stopAll() {
   _isPlayingPiper    = false;
   _isPausedPiper     = false;
+  _playbackEngine    = null;
   _playingSourceTabId = null;
   _piperOnlineCache.expiresAt = 0; // invalidate cache so next read checks fresh
   await setStopMenuVisible(false);
@@ -254,6 +269,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "playback-ended") {
     _isPlayingPiper = false;
     _isPausedPiper  = false;
+    _playbackEngine = null;
     setStopMenuVisible(false);
     return;
   }
@@ -343,17 +359,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Keyboard shortcut: Alt+Shift+D — pause/resume toggle
   if (message.type === "keyboard-pause") {
     (async () => {
-      const existing = await chrome.runtime.getContexts({
-        contextTypes: ["OFFSCREEN_DOCUMENT"],
-        documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)]
-      }).catch(() => []);
-
       if (_isPausedPiper) {
         _isPausedPiper = false;
-        if (existing.length > 0) chrome.runtime.sendMessage({ type: "resume-audio" }).catch(() => {});
+        if (_playbackEngine === "browser") {
+          chrome.tts.resume();
+        } else {
+          const existing = await chrome.runtime.getContexts({
+            contextTypes: ["OFFSCREEN_DOCUMENT"],
+            documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)]
+          }).catch(() => []);
+          if (existing.length > 0) chrome.runtime.sendMessage({ type: "resume-audio" }).catch(() => {});
+        }
       } else if (_isPlayingPiper) {
         _isPausedPiper = true;
-        if (existing.length > 0) chrome.runtime.sendMessage({ type: "pause-audio" }).catch(() => {});
+        if (_playbackEngine === "browser") {
+          chrome.tts.pause();
+        } else {
+          const existing = await chrome.runtime.getContexts({
+            contextTypes: ["OFFSCREEN_DOCUMENT"],
+            documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)]
+          }).catch(() => []);
+          if (existing.length > 0) chrome.runtime.sendMessage({ type: "pause-audio" }).catch(() => {});
+        }
       }
     })().catch(err => console.error("[keyboard-pause]", err));
     return;
