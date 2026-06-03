@@ -4,6 +4,10 @@ A Chrome extension that lets you highlight text on any webpage, right-click it, 
 
 A browser TTS fallback is also built in, so it works instantly with no server setup.
 
+## Popup
+
+![Piper TTS popup showing profile, speed, volume, test, and stop controls](screenshots/popup.png)
+
 ---
 
 ## What's in this repo
