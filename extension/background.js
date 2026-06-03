@@ -15,7 +15,7 @@ async function rebuildMenus() {
   // Main read item — uses the active profile
   chrome.contextMenus.create({
     id:       "read-selection",
-    title:    "Read selected text",
+    title:    "Read selected text aloud",
     contexts: ["selection"]
   });
 
@@ -39,8 +39,20 @@ async function rebuildMenus() {
   chrome.contextMenus.create({
     id:       "stop-reading",
     title:    "Stop reading",
-    contexts: ["all"]
+    contexts: ["all"],
+    visible:  _isPlayingPiper
   });
+}
+
+async function setStopMenuVisible(visible) {
+  try {
+    await chrome.contextMenus.update("stop-reading", { visible });
+  } catch (err) {
+    // The menu may not exist yet immediately after install or service worker startup.
+    if (!err.message?.includes("Cannot find menu item")) {
+      console.error("[TTS] setStopMenuVisible failed:", err);
+    }
+  }
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -84,6 +96,7 @@ function speakWithBrowser(text, settings) {
   chrome.tts.stop();
   _isPlayingPiper = true;   // reuse the playing flag so popup + keyboard toggle work
   _isPausedPiper  = false;
+  setStopMenuVisible(true);
   chrome.tts.speak(text, {
     rate:   settings.rate   ?? 1.0,
     pitch:  1.0,
@@ -92,6 +105,7 @@ function speakWithBrowser(text, settings) {
     onEvent: (e) => {
       if (e.type === "end" || e.type === "interrupted" || e.type === "cancelled") {
         _isPlayingPiper = false;
+        setStopMenuVisible(false);
       }
       if (e.type === "error") console.error("tts error:", e.errorMessage);
     }
@@ -130,12 +144,14 @@ async function speakWithPiper(text, settings) {
   _isPlayingPiper = true;
   _isPausedPiper  = false;
   _currentVolume  = settings.volume ?? 1.0;
+  setStopMenuVisible(true);
   try {
     await ensureOffscreenDocument();
   } catch (err) {
     // Unexpected offscreen creation error — reset flag so the popup/shortcut
     // don't get stuck in "Playing" state forever.
     _isPlayingPiper = false;
+    setStopMenuVisible(false);
     throw err;
   }
   chrome.runtime.sendMessage({ type: "stop-audio" }).catch(() => {});
@@ -149,6 +165,7 @@ async function speakWithPiper(text, settings) {
   }).catch((err) => {
     console.error("speak-text delivery failed:", err);
     _isPlayingPiper = false; // delivery failed — no playback-ended will ever arrive
+    setStopMenuVisible(false);
   });
 }
 
@@ -158,6 +175,7 @@ async function stopAll() {
   _isPausedPiper     = false;
   _playingSourceTabId = null;
   _piperOnlineCache.expiresAt = 0; // invalidate cache so next read checks fresh
+  await setStopMenuVisible(false);
   chrome.tts.stop();
   try {
     const existing = await chrome.runtime.getContexts({
@@ -236,6 +254,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "playback-ended") {
     _isPlayingPiper = false;
     _isPausedPiper  = false;
+    setStopMenuVisible(false);
     return;
   }
 

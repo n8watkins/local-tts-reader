@@ -111,7 +111,7 @@ You should see:
    Running at http://127.0.0.1:5050
 ```
 
-The server must be running whenever you want to use local TTS. You can set it to auto-start using the included tray helper (see [Tray Integration](#tray-integration) below).
+The server must be running whenever you want to use local TTS.
 
 ---
 
@@ -127,8 +127,15 @@ The server must be running whenever you want to use local TTS. You can set it to
 
 **Read text aloud:**
 1. Highlight any text on a webpage
-2. Right-click → **Read selected text**
-3. To stop: right-click anywhere → **Stop reading** (or use the popup)
+2. Right-click → **Read selected text aloud**
+3. To stop while audio is playing: right-click anywhere → **Stop reading** (or use the popup)
+
+**Keyboard shortcuts:**
+- Read / stop selected text: `Alt+Shift+R`
+- Pause / resume: `Alt+Shift+D`
+- Stop / exit: `Alt+Shift+E`
+
+You can change these shortcuts in Settings.
 
 **Switch profiles:**
 - Click the `‹` / `›` arrows in the popup to cycle between profiles
@@ -146,7 +153,7 @@ The settings page (⚙ gear icon) has four tabs:
 
 | Tab | What you can do |
 |-----|-----------------|
-| **Profiles** | Create, edit, and delete named voice presets (up to 10). Each profile stores a voice, speed, and volume. |
+| **Profiles** | Create, edit, and delete named voice presets (up to 5). Each profile stores a voice, speed, and volume. |
 | **Voices** | Browse installed voices, test them, mark favorites (up to 5), or delete them from disk. |
 | **Settings** | Toggle the browser TTS fallback when Piper is offline. |
 | **Credits** | Piper credits and links back to this README. |
@@ -166,6 +173,7 @@ The settings page (⚙ gear icon) has four tabs:
 | Volume control (up to 2×) | ✅ | ✅ |
 | Long-text chunking | ✅ | ✅ |
 | Stop reading | ✅ | ✅ |
+| Pause / resume | ❌ | ✅ |
 | Offline fallback to browser voice | — | ✅ optional |
 
 ---
@@ -173,7 +181,7 @@ The settings page (⚙ gear icon) has four tabs:
 ## How It Works
 
 ```
-Highlight text → right-click → "Read selected text"
+Highlight text → right-click → "Read selected text aloud"
        ↓
 background.js (service worker)
        ↓                        ↓
@@ -189,12 +197,6 @@ background.js (service worker)
 ```
 
 Chrome Manifest V3 service workers cannot play audio directly, so Piper audio playback is routed through an **offscreen document** — a hidden page that can use `new Audio()` normally.
-
----
-
-## Tray Integration
-
-If you use the [Piper TTS tray helper](https://github.com/n8watkins/piper-tts) on Windows, the local Piper server can be auto-started when you log in and its status is shown in the system tray.
 
 ---
 
@@ -227,10 +229,10 @@ If you use the [Piper TTS tray helper](https://github.com/n8watkins/piper-tts) o
 - [x] Named profiles (voice + speed + volume presets)
 - [x] Settings page (voices, profiles, credits)
 - [x] Multiple voice management (install, test, favorite, delete)
-- [x] Windows tray helper (auto-start server)
-- [ ] Keyboard shortcut to trigger reading
+- [x] Keyboard shortcut to trigger reading
+- [x] Pause / resume support
 - [ ] Reading progress indicator in popup
-- [ ] Pause / resume support
+- [ ] Windows tray helper (auto-start server)
 - [ ] macOS/Linux Piper server launch script
 
 ---
