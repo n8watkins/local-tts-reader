@@ -17,7 +17,7 @@ const fs      = require("fs/promises");
 const { createReadStream } = require("fs");
 const path    = require("path");
 const crypto  = require("crypto");
-const { spawn, exec } = require("child_process");
+const { spawn } = require("child_process");
 const { version } = require("./package.json");
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -40,7 +40,27 @@ const DEFAULT_VOICE = "en_US-ryan-high.onnx";
 // ─── App Setup ────────────────────────────────────────────────────────────────
 const app = express();
 
-const corsOptions = { origin: "*", methods: ["GET", "POST", "DELETE", "OPTIONS"] };
+function isAllowedOrigin(origin) {
+  // CLI tools and same-process scripts usually do not send Origin. Browser pages do.
+  if (!origin) return true;
+  return origin.startsWith("chrome-extension://");
+}
+
+function enforceAllowedOrigin(req, res, next) {
+  if (isAllowedOrigin(req.get("Origin"))) {
+    next();
+    return;
+  }
+  res.status(403).json({ error: "Origin not allowed by Piper TTS local server." });
+}
+
+const corsOptions = {
+  origin(origin, callback) {
+    callback(null, isAllowedOrigin(origin));
+  },
+  methods: ["GET", "POST", "DELETE", "OPTIONS"]
+};
+app.use(enforceAllowedOrigin);
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions)); // explicit preflight for DELETE etc.
 app.use(express.json({ limit: "1mb" }));
@@ -63,6 +83,35 @@ function validateText(text) {
     return `Text is too long (${trimmed.length} chars). Maximum is ${MAX_CHARS}.`;
   }
   return null; // valid
+}
+
+function isSafeVoiceFilename(name) {
+  return (
+    typeof name === "string" &&
+    name === path.basename(name) &&
+    name.endsWith(".onnx") &&
+    /^[A-Za-z0-9._-]+$/.test(name)
+  );
+}
+
+async function validateVoiceFile(name) {
+  if (!isSafeVoiceFilename(name)) {
+    return "Voice must be a .onnx filename.";
+  }
+
+  try {
+    await fs.access(path.join(VOICE_DIR, name));
+  } catch (_) {
+    return `Voice model not found: ${name}`;
+  }
+
+  try {
+    await fs.access(path.join(VOICE_DIR, name + ".json"));
+  } catch (_) {
+    return `Voice config not found: ${name}.json`;
+  }
+
+  return null;
 }
 
 // ─── Piper Runner ─────────────────────────────────────────────────────────────
@@ -135,10 +184,10 @@ app.post("/tts", async (req, res) => {
     return res.status(400).json({ error: validationError });
   }
 
-  // Sanitize voice — only allow filename-safe characters, must end in .onnx
-  const safeVoice = path.basename(voice);
-  if (!safeVoice.endsWith(".onnx")) {
-    return res.status(400).json({ error: "Voice must be a .onnx filename." });
+  const safeVoice = voice.trim();
+  const voiceError = await validateVoiceFile(safeVoice);
+  if (voiceError) {
+    return res.status(400).json({ error: voiceError });
   }
 
   const cleanText  = text.trim();
@@ -224,18 +273,26 @@ app.get("/voices", async (_req, res) => {
 
 // ─── POST /voices/open-folder  (reveal voices directory in file manager) ──────
 app.post("/voices/open-folder", (_req, res) => {
-  const cmd =
-    process.platform === "win32"  ? `explorer.exe "${VOICE_DIR}"` :
-    process.platform === "darwin" ? `open "${VOICE_DIR}"` :
-                                    `xdg-open "${VOICE_DIR}"`;
-  exec(cmd, () => {});
+  const command =
+    process.platform === "win32"  ? "explorer.exe" :
+    process.platform === "darwin" ? "open" :
+                                    "xdg-open";
+  const child = spawn(command, [VOICE_DIR], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true
+  });
+  child.on("error", (err) => {
+    console.warn("[/voices/open-folder] Failed to open folder:", err.message);
+  });
+  child.unref();
   res.json({ ok: true });
 });
 
 // ─── DELETE /voices/:name  (remove an installed voice) ───────────────────────
 app.delete("/voices/:name", async (req, res) => {
-  const name = path.basename(req.params.name); // strip any path traversal
-  if (!name.endsWith(".onnx")) {
+  const name = req.params.name;
+  if (!isSafeVoiceFilename(name)) {
     return res.status(400).json({ error: "Voice name must end in .onnx" });
   }
   const onnxPath = path.join(VOICE_DIR, name);

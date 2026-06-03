@@ -22,7 +22,14 @@ function Stop-PidFileProcess {
     return
   }
 
-  $processId = [int](Get-Content -LiteralPath $Path -Raw)
+  try {
+    $processId = [int]((Get-Content -LiteralPath $Path -Raw).Trim())
+  } catch {
+    Write-ManagedLog "$Label pid file was invalid; removing it." "WARN"
+    Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    return
+  }
+
   $proc = Get-Process -Id $processId -ErrorAction SilentlyContinue
   if ($proc) {
     Stop-Process -Id $processId -Force

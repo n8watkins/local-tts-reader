@@ -31,7 +31,13 @@ try {
   Set-Content -LiteralPath $WrapperPidFile -Value $PID -Encoding ASCII
 
   if (Test-Path $PidFile) {
-    $existingPid = [int](Get-Content -LiteralPath $PidFile -Raw)
+    try {
+      $existingPid = [int]((Get-Content -LiteralPath $PidFile -Raw).Trim())
+    } catch {
+      Write-ManagedLog "Existing server pid file was invalid; removing it." "WARN"
+      Remove-Item -LiteralPath $PidFile -Force -ErrorAction SilentlyContinue
+      $existingPid = 0
+    }
     if ($existingPid -gt 0 -and (Test-ProcessIdRunning $existingPid)) {
       Write-ManagedLog "Piper TTS server is already running: pid=$existingPid"
       exit 0

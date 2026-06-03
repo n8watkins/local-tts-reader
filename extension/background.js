@@ -3,14 +3,36 @@ const PIPER_BASE_URL = "http://127.0.0.1:5050";
 const PIPER_URL      = `${PIPER_BASE_URL}/tts`;
 const OFFSCREEN_URL  = "offscreen.html";
 
+function defaultProfile() {
+  return { id: "default", name: "Profile 1", voice: "", rate: 1.0, volume: 1.0 };
+}
+
+async function getProfileState() {
+  const state = await chrome.storage.local.get(["profiles", "activeId"]);
+  const profiles = Array.isArray(state.profiles) ? state.profiles : [];
+  let activeId = state.activeId || "";
+
+  if (profiles.length === 0) {
+    const profile = defaultProfile();
+    await chrome.storage.local.set({ profiles: [profile], activeId: profile.id });
+    return { profiles: [profile], activeId: profile.id };
+  }
+
+  if (!activeId || !profiles.some(p => p.id === activeId)) {
+    activeId = profiles[0].id;
+    await chrome.storage.local.set({ activeId });
+  }
+
+  return { profiles, activeId };
+}
+
 // ─── Context Menu Builder ─────────────────────────────────────────────────────
 // Rebuilds context menus from stored profiles. Called on install and whenever
 // profiles change.
 async function rebuildMenus() {
   await chrome.contextMenus.removeAll();
 
-  const { profiles = [], activeId = "" } =
-    await chrome.storage.local.get(["profiles", "activeId"]);
+  const { profiles, activeId } = await getProfileState();
 
   // Main read item — uses the active profile
   chrome.contextMenus.create({
@@ -93,6 +115,8 @@ async function ensureOffscreenDocument() {
 
 // ─── Browser TTS ─────────────────────────────────────────────────────────────
 function speakWithBrowser(text, settings) {
+  const generation = ++_browserSpeakGeneration;
+  _activePiperRequest = null;
   chrome.tts.stop();
   _isPlayingPiper = true;   // reuse the playing flag so popup + keyboard toggle work
   _isPausedPiper  = false;
@@ -113,6 +137,7 @@ function speakWithBrowser(text, settings) {
     volume: _currentVolume,
     enqueue: false,
     onEvent: (e) => {
+      if (generation !== _browserSpeakGeneration || _playbackEngine !== "browser") return;
       if (e.type === "end" || e.type === "interrupted" || e.type === "cancelled") {
         _isPlayingPiper = false;
         _isPausedPiper  = false;
@@ -157,6 +182,8 @@ let _playbackEngine    = null; // "piper" or "browser"
 let _playingSourceTabId = null; // tab that triggered the current playback
 let _currentVolume     = 1.0;  // cached from active profile; sent to content script overlay
 let _playbackProgress  = { active: false, engine: null, current: 0, total: 0, percent: null, label: "" };
+let _activePiperRequest = null;
+let _browserSpeakGeneration = 0;
 
 function resetProgress() {
   _playbackProgress = { active: false, engine: null, current: 0, total: 0, percent: null, label: "" };
@@ -167,6 +194,9 @@ async function speakWithPiper(text, settings) {
   const online = await checkPiperOnline();
   if (!online) throw new Error("Piper server is offline");
 
+  _browserSpeakGeneration++;
+  chrome.tts.stop();
+  _activePiperRequest = { text, settings: { ...settings } };
   _isPlayingPiper = true;
   _isPausedPiper  = false;
   _playbackEngine = "piper";
@@ -187,11 +217,11 @@ async function speakWithPiper(text, settings) {
     // don't get stuck in "Playing" state forever.
     _isPlayingPiper = false;
     _playbackEngine = null;
+    _activePiperRequest = null;
     resetProgress();
     setStopMenuVisible(false);
     throw err;
   }
-  chrome.runtime.sendMessage({ type: "stop-audio" }).catch(() => {});
   chrome.runtime.sendMessage({
     type:    "speak-text",
     text,
@@ -203,6 +233,7 @@ async function speakWithPiper(text, settings) {
     console.error("speak-text delivery failed:", err);
     _isPlayingPiper = false; // delivery failed — no playback-ended will ever arrive
     _playbackEngine = null;
+    _activePiperRequest = null;
     resetProgress();
     setStopMenuVisible(false);
   });
@@ -214,6 +245,8 @@ async function stopAll() {
   _isPausedPiper     = false;
   _playbackEngine    = null;
   _playingSourceTabId = null;
+  _activePiperRequest = null;
+  _browserSpeakGeneration++;
   resetProgress();
   _piperOnlineCache.expiresAt = 0; // invalidate cache so next read checks fresh
   await setStopMenuVisible(false);
@@ -248,8 +281,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const text = info.selectionText?.trim();
   if (!text) return;
 
-  let { profiles = [], activeId = "" } =
-    await chrome.storage.local.get(["profiles", "activeId"]);
+  let { profiles, activeId } = await getProfileState();
 
   // If a specific profile was chosen from the submenu, switch to it and read
   // with the newly selected profile.
@@ -263,6 +295,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     await rebuildMenus();
     // Also read the selected text with the newly chosen profile
     const selectedProfile = profiles.find(p => p.id === activeId);
+    _playingSourceTabId = tab?.id ?? null;
     if (selectedProfile && text) await speakText(text, selectedProfile);
     return;
   }
@@ -296,8 +329,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     _isPlayingPiper = false;
     _isPausedPiper  = false;
     _playbackEngine = null;
+    _activePiperRequest = null;
     resetProgress();
     setStopMenuVisible(false);
+    return;
+  }
+
+  if (message.type === "playback-error") {
+    const request = _activePiperRequest;
+    _isPlayingPiper = false;
+    _isPausedPiper  = false;
+    _playbackEngine = null;
+    _activePiperRequest = null;
+    resetProgress();
+    setStopMenuVisible(false);
+
+    (async () => {
+      const { fallback = true } = await chrome.storage.local.get("fallback");
+      if (fallback && request?.text) {
+        console.warn("Piper playback failed; falling back to browser TTS:", message.error);
+        speakWithBrowser(request.text, request.settings || {});
+      } else {
+        console.error("Piper playback failed:", message.error);
+      }
+    })().catch(err => console.error("[playback-error]", err));
     return;
   }
 
@@ -361,8 +416,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!text) return;
     _playingSourceTabId = sender.tab?.id ?? null;
     (async () => {
-      const { profiles = [], activeId = "" } =
-        await chrome.storage.local.get(["profiles", "activeId"]);
+      const { profiles, activeId } = await getProfileState();
       const profile = profiles.find(p => p.id === activeId) || profiles[0];
       if (profile) await speakText(text, profile);
     })().catch(err => console.error("[keyboard-read]", err));
@@ -372,8 +426,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Overlay volume rocker: adjust active profile volume and update live gain
   if (message.type === "adjust-volume") {
     (async () => {
-      const { profiles = [], activeId = "" } =
-        await chrome.storage.local.get(["profiles", "activeId"]);
+      const { profiles, activeId } = await getProfileState();
       const profile = profiles.find(p => p.id === activeId) || profiles[0];
       if (!profile) { sendResponse({ ok: false }); return; }
 

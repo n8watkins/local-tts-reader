@@ -208,6 +208,7 @@ async function playQueue(chunks, piperUrl, volume, rate, voice, generation) {
   isPlaying = true;
   playbackQueue = [...chunks];
   const totalChunks = chunks.length;
+  let failed = false;
   sendProgress(0, totalChunks, "Starting");
 
   const live = () => isPlaying && playGeneration === generation;
@@ -241,6 +242,12 @@ async function playQueue(chunks, piperUrl, volume, rate, voice, generation) {
       if (live()) {
         // Real error mid-playback — log and stop (don't continue to next chunk)
         console.error("TTS chunk error:", err);
+        failed = true;
+        chrome.runtime.sendMessage({
+          type: "playback-error",
+          engine: "piper",
+          error: err.message || "Piper playback failed."
+        }).catch(() => {});
       }
       break;
     }
@@ -250,8 +257,10 @@ async function playQueue(chunks, piperUrl, volume, rate, voice, generation) {
   if (playGeneration === generation) {
     isPlaying = false;
     isPaused  = false;
-    // Notify background so it can update the popup's now-playing indicator
-    chrome.runtime.sendMessage({ type: "playback-ended" }).catch(() => {});
+    if (!failed) {
+      // Notify background so it can update the popup's now-playing indicator
+      chrome.runtime.sendMessage({ type: "playback-ended" }).catch(() => {});
+    }
   }
 }
 

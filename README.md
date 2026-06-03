@@ -138,7 +138,7 @@ Standard start:
 
 ```bash
 cd local-piper-server
-npm install        # first time only
+npm install        # first time only; npm ci also works because package-lock.json is committed
 npm start
 ```
 
@@ -177,7 +177,7 @@ cd local-piper-server
 npm run start:windows:tray
 ```
 
-The tray uses the Piper icon and a plain Windows menu: status, Start Server, Stop Server, Open Voices Folder, and Exit. It starts the server automatically when the tray launches if the server is offline.
+The tray uses the Piper icon and a plain Windows menu: status, Start Server, Stop Server, Open Voices Folder, and Exit. It starts the server automatically when the tray launches if the server is offline. If another Piper server is already running outside the tray, the tray shows it as an external server and disables Stop Server so it does not kill a process it does not manage.
 
 Install or remove Windows sign-in startup:
 
@@ -237,7 +237,7 @@ The settings page (⚙ gear icon) has five tabs:
 |-----|-----------------|
 | **Profiles** | Create, edit, and delete named voice presets (up to 5). Each profile stores a voice, speed, and volume. |
 | **Voices** | Browse installed voices, test them, mark favorites (up to 5), or delete them from disk. |
-| **Settings** | Toggle the browser TTS fallback when Piper is offline. |
+| **Settings** | Toggle the browser TTS fallback when Piper is offline or Piper generation fails. |
 | **About** | See how the extension routes selected text through the local server and offscreen player. |
 | **Credits** | Piper credits and links back to this README. |
 
@@ -245,7 +245,7 @@ The settings page (⚙ gear icon) has five tabs:
 
 ## Features
 
-There is not a separate mode switch. The extension tries the local Piper server first. If Piper is offline and **Browser TTS fallback** is enabled, it uses Chrome's built-in `chrome.tts` voice instead.
+There is not a separate mode switch. The extension tries the local Piper server first. If Piper is offline or Piper generation fails and **Browser TTS fallback** is enabled, it uses Chrome's built-in `chrome.tts` voice instead.
 
 | Capability | Browser voice fallback | Local Piper voice |
 |------------|------------------------|-------------------|
@@ -259,7 +259,7 @@ There is not a separate mode switch. The extension tries the local Piper server 
 | Stop reading | ✅ | ✅ |
 | Pause / resume | ✅ | ✅ |
 | Long selected text | Browser TTS handles playback | Extension chunks text for Piper |
-| Offline fallback behavior | This is the fallback engine | Falls back to browser voice when enabled |
+| Fallback behavior | This is the fallback engine | Falls back to browser voice when enabled |
 
 ---
 
@@ -269,10 +269,10 @@ There is not a separate mode switch. The extension tries the local Piper server 
 Highlight text → right-click → "Read selected text aloud"
        ↓
 background.js (service worker)
-       ↓                        ↓
- Piper server online       Server offline + fallback on
-       ↓                        ↓
- offscreen.js              chrome.tts.speak()
+       ↓                              ↓
+ Piper server reachable       Server offline or Piper fails
+       ↓                              ↓
+ offscreen.js                    chrome.tts.speak()
        ↓
  POST /tts → local-piper-server
        ↓
@@ -297,7 +297,7 @@ Chrome Manifest V3 service workers cannot play audio directly, so Piper audio pl
 → Open Chrome DevTools (F12 → Console) and look for errors. Common causes: no voice model downloaded, wrong voice filename, Piper executable not found.
 
 **Audio sounds wrong or cuts off**  
-→ Long text is split into sentence chunks and played sequentially. If one chunk errors, playback stops. Check the console for details.
+→ Long text is split into sentence chunks and played sequentially. If Piper generation fails and browser fallback is enabled, playback falls back to the browser voice. Check the console for details.
 
 **Browser voice sounds robotic**  
 → That's your OS's built-in TTS. The Piper server provides much better quality.
@@ -323,17 +323,10 @@ Chrome Manifest V3 service workers cannot play audio directly, so Piper audio pl
 - [x] macOS/Linux launch script
 - [ ] macOS/Linux real-machine verification
 
-### Roadmap Plan
-
-**Reading progress indicator**
-1. Track total chunks and current chunk in `offscreen.js`.
-2. Send progress updates to `background.js` during Piper playback.
-3. Expose progress through the existing `get-playback-state` message.
-4. Add a compact progress bar to the popup and overlay.
-5. For browser fallback playback, show an indeterminate or elapsed-only state because Chrome's browser TTS API does not expose chunk progress.
+### Verification Still Needed
 
 **Windows tray helper**
-This is useful for Windows users who do not want to keep a terminal open. The repo includes two small pieces:
+This is useful for Windows users who do not want to keep a terminal open. The repo includes:
 
 - `local-piper-server/scripts/start-background-windows.ps1`
 - `local-piper-server/scripts/stop-background-windows.ps1`
@@ -341,9 +334,7 @@ This is useful for Windows users who do not want to keep a terminal open. The re
 - `local-piper-server/scripts/piper-tray-windows.ps1`
 - `local-piper-server/scripts/start-piper-tray-windows.bat`
 
-The tray intentionally uses the default Windows menu and only exposes status, Start Server, Stop Server, Open Voices Folder, and Exit. It also starts the server automatically when the tray launches.
-
-Remaining work: run the tray on Windows and fix any runtime issues found there.
+The tray intentionally uses the default Windows menu and only exposes status, Start Server, Stop Server, Open Voices Folder, and Exit. It also starts the server automatically when the tray launches. It still needs runtime verification on a real Windows machine.
 
 **macOS/Linux server support**
 1. Verify Piper release archive layout on actual macOS and Linux machines.
@@ -363,5 +354,9 @@ The Unix launcher is POSIX-shell syntax checked in this repo. Runtime verificati
 Piper TTS runs locally: the Chrome extension sends selected text to your own
 localhost server, which invokes your local Piper executable and installed voice
 models. No text is sent to a hosted API by this project.
+
+The local server binds to `127.0.0.1` by default and rejects browser-origin
+requests unless they come from a Chrome extension origin. Command-line tools
+without an `Origin` header can still be used for local testing.
 
 MIT License — free to use, fork, and share.

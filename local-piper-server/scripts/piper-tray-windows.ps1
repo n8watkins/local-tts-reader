@@ -2,11 +2,16 @@ $ErrorActionPreference = "Stop"
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -Namespace Win32 -Name NativeMethods -MemberDefinition @"
+[System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+public static extern bool DestroyIcon(System.IntPtr hIcon);
+"@
 
 $ServerDir = Split-Path -Parent $PSScriptRoot
 $StartScript = Join-Path $PSScriptRoot "start-background-windows.ps1"
 $StopScript = Join-Path $PSScriptRoot "stop-background-windows.ps1"
 $LogDir = Join-Path $ServerDir "logs"
+$PidFile = Join-Path $LogDir "piper-tts-server.pid"
 $IconFile = Join-Path (Split-Path -Parent $ServerDir) "extension\icons\icon128.png"
 $HealthUrl = "http://127.0.0.1:5050/health"
 $AutoStartServer = $true
@@ -23,6 +28,26 @@ function Test-PiperOnline {
   } catch {
     return $false
   }
+}
+
+function Test-ProcessIdRunning {
+  param([int]$ProcessId)
+  return $null -ne (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)
+}
+
+function Get-ManagedServerPid {
+  if (-not (Test-Path $PidFile)) {
+    return $null
+  }
+
+  try {
+    $processId = [int]((Get-Content -LiteralPath $PidFile -Raw).Trim())
+    if ($processId -gt 0 -and (Test-ProcessIdRunning $processId)) {
+      return $processId
+    }
+  } catch {}
+
+  return $null
 }
 
 function Start-PiperServer {
@@ -45,8 +70,22 @@ function Open-VoicesFolder {
 
 function Get-TrayIcon {
   if (Test-Path $IconFile) {
-    $bitmap = [System.Drawing.Bitmap]::FromFile($IconFile)
-    return [System.Drawing.Icon]::FromHandle($bitmap.GetHicon())
+    $bitmap = $null
+    $handle = [System.IntPtr]::Zero
+    try {
+      $bitmap = [System.Drawing.Bitmap]::FromFile($IconFile)
+      $handle = $bitmap.GetHicon()
+      $icon = [System.Drawing.Icon]::FromHandle($handle)
+      $clonedIcon = $icon.Clone()
+      return [System.Drawing.Icon]$clonedIcon
+    } finally {
+      if ($handle -ne [System.IntPtr]::Zero) {
+        [Win32.NativeMethods]::DestroyIcon($handle) | Out-Null
+      }
+      if ($bitmap) {
+        $bitmap.Dispose()
+      }
+    }
   }
   return [System.Drawing.SystemIcons]::Application
 }
@@ -69,10 +108,23 @@ $tray.Visible = $true
 
 function Update-Tray {
   $online = Test-PiperOnline
-  $statusItem.Text = if ($online) { "Piper TTS: online" } else { "Piper TTS: offline" }
-  $tray.Text = if ($online) { "Piper TTS - online" } else { "Piper TTS - offline" }
+  $managedPid = Get-ManagedServerPid
+  $managed = $null -ne $managedPid
+
+  if ($managed) {
+    $statusItem.Text = "Piper TTS: online"
+    $tray.Text = "Piper TTS - online"
+  } elseif ($online) {
+    $statusItem.Text = "Piper TTS: online (external)"
+    $tray.Text = "Piper TTS - external server"
+  } else {
+    $statusItem.Text = "Piper TTS: offline"
+    $tray.Text = "Piper TTS - offline"
+  }
+
   $startItem.Enabled = -not $online
-  $stopItem.Enabled = $online
+  $stopItem.Enabled = $managed
+  $stopItem.Text = if ($online -and -not $managed) { "Stop Server (managed only)" } else { "Stop Server" }
 }
 
 $timer = New-Object System.Windows.Forms.Timer
