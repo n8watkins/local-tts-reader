@@ -61,11 +61,25 @@ Other good English voices to try:
 npm start
 ```
 
+Platform helpers:
+
+```bash
+# macOS/Linux
+npm run start:unix
+```
+
+```powershell
+# Windows PowerShell
+npm run start:windows
+```
+
 You should see:
 ```
 🔊 Piper TTS Local Server
    Running at http://127.0.0.1:5050
 ```
+
+The Unix launcher is POSIX-shell syntax checked in this repo. Runtime verification on macOS/Linux still requires access to those platforms.
 
 ---
 

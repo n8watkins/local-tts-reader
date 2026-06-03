@@ -134,10 +134,26 @@ The **Open folder** button in the Voices tab opens the exact folder where voice 
 
 ### Step 5 — Start the local server
 
+Standard start:
+
 ```bash
 cd local-piper-server
 npm install        # first time only
 npm start
+```
+
+Platform launch helpers are also included:
+
+```bash
+# macOS/Linux
+cd local-piper-server
+npm run start:unix
+```
+
+```powershell
+# Windows PowerShell
+cd local-piper-server
+npm run start:windows
 ```
 
 You should see:
@@ -272,7 +288,8 @@ Chrome Manifest V3 service workers cannot play audio directly, so Piper audio pl
 - [x] Keyboard shortcut to trigger reading
 - [x] Cross-platform Piper binary path configuration
 - [ ] Windows tray helper (auto-start server)
-- [ ] macOS/Linux Piper server launch scripts and verification
+- [x] macOS/Linux launch script
+- [ ] macOS/Linux real-machine verification
 
 ### Roadmap Plan
 
@@ -292,10 +309,11 @@ This is useful for Windows users who do not want to keep a terminal open. It sho
 4. Document install, uninstall, and troubleshooting steps.
 
 **macOS/Linux server support**
-1. Add platform launch scripts for macOS and Linux.
-2. Verify Piper release archive layout on each platform.
-3. Verify voice download paths and `xdg-open`/`open` folder behavior on each platform.
-4. Add troubleshooting notes for executable permissions on macOS/Linux.
+1. Verify Piper release archive layout on actual macOS and Linux machines.
+2. Verify voice download paths and `xdg-open`/`open` folder behavior on each platform.
+3. Add troubleshooting notes for executable permissions on macOS/Linux based on real failures.
+
+The Unix launcher is POSIX-shell syntax checked in this repo. Runtime verification on macOS/Linux still needs access to those platforms.
 
 ---
 
