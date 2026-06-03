@@ -29,6 +29,14 @@ npm install
 npm run screenshots
 ```
 
+If your Windows account, Chrome path, or Windows Node path differs from the defaults, set these before running the script:
+
+```bash
+PIPER_TTS_WINDOWS_USER=your-windows-user npm run screenshots
+PIPER_TTS_CHROME_PATH='C:\Program Files\Google\Chrome\Application\chrome.exe' npm run screenshots
+PIPER_TTS_WINDOWS_NODE='/mnt/c/Program Files/nodejs/node.exe' npm run screenshots
+```
+
 ---
 
 ## What's in this repo

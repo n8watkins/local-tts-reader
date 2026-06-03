@@ -92,6 +92,7 @@ function OptionsApp() {
   const [voices, setVoices] = useState([]);
   const [voiceSizes, setVoiceSizes] = useState({});
   const [voiceDir, setVoiceDir] = useState('');
+  const [voiceLoadError, setVoiceLoadError] = useState('');
   const [serverOnline, setServerOnline] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createProfile, setCreateProfile] = useState({ name: '', voice: '', rate: 1.0, volume: 1.0 });
@@ -157,7 +158,10 @@ function OptionsApp() {
 
   async function fetchVoices(forceStatus = false) {
     const online = forceStatus ? await checkServerStatus() : serverOnline || await checkServerStatus();
-    if (!online) return;
+    if (!online) {
+      setVoiceLoadError('');
+      return;
+    }
     try {
       const res = await fetch(`${PIPER_BASE_URL}/voices`);
       if (!res.ok) throw new Error(`Server responded ${res.status}`);
@@ -165,10 +169,12 @@ function OptionsApp() {
       setVoices(data.voices || []);
       setVoiceSizes(data.sizes || {});
       setVoiceDir(data.voiceDir || '');
-    } catch (_) {
+      setVoiceLoadError('');
+    } catch (error) {
       setVoices([]);
       setVoiceSizes({});
       setVoiceDir('');
+      setVoiceLoadError(`Failed to load voices: ${error.message}`);
     }
   }
 
@@ -352,8 +358,14 @@ function OptionsApp() {
       type: 'test-voice',
       text: `This is a test of the voice ${formatVoiceName(filename)}.`,
       settings: { voice: filename, rate: 1.0, volume: 1.0 },
-    }, () => {
+    }, (response) => {
       setTestingVoice('');
+      const runtimeErr = chrome.runtime.lastError;
+      if (runtimeErr) {
+        showAlert(`Extension error: ${runtimeErr.message}`);
+        return;
+      }
+      if (response && !response.ok) showAlert(`Test failed: ${response.error || 'Unknown error'}`);
     });
   }
 
@@ -547,7 +559,7 @@ function OptionsApp() {
 
           <div className="voice-grid">
             {visibleVoices.length === 0 && (
-              <p className="no-items">{favsOnly ? 'No favourites yet. Star a voice to add it here.' : serverOnline ? 'No voices installed. Download voices and place them in piper/voices/.' : 'Start the Piper server to see installed voices.'}</p>
+              <p className="no-items">{voiceLoadError || (favsOnly ? 'No favourites yet. Star a voice to add it here.' : serverOnline ? 'No voices installed. Download voices and place them in piper/voices/.' : 'Start the Piper server to see installed voices.')}</p>
             )}
             {visibleVoices.map((voice) => {
               const isFav = favorites.includes(voice);
