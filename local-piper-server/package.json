@@ -7,7 +7,9 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "start:unix": "sh scripts/start-unix.sh",
-    "start:windows": "powershell -ExecutionPolicy Bypass -File scripts/start-windows.ps1"
+    "start:windows": "powershell -ExecutionPolicy Bypass -File scripts/start-windows.ps1",
+    "start:windows:bg": "powershell -ExecutionPolicy Bypass -File scripts/start-background-windows.ps1",
+    "stop:windows:bg": "powershell -ExecutionPolicy Bypass -File scripts/stop-background-windows.ps1"
   },
   "dependencies": {
     "cors": "^2.8.5",

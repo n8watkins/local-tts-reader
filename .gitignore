@@ -12,6 +12,7 @@ local-piper-server/piper/voices/*.onnx.json
 # Generated audio output
 local-piper-server/output/*.wav
 local-piper-server/output/*.mp3
+local-piper-server/logs/
 
 # Environment variables
 .env

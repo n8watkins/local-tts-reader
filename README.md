@@ -156,6 +156,20 @@ cd local-piper-server
 npm run start:windows
 ```
 
+Windows hidden/background start:
+
+```powershell
+cd local-piper-server
+npm run start:windows:bg
+```
+
+Stop the hidden Windows server:
+
+```powershell
+cd local-piper-server
+npm run stop:windows:bg
+```
+
 You should see:
 ```
 🔊 Piper TTS Local Server
@@ -303,10 +317,18 @@ Chrome Manifest V3 service workers cannot play audio directly, so Piper audio pl
 **Windows tray helper**
 This is useful for Windows users who do not want to keep a terminal open. It should be a separate helper app rather than hidden inside the extension.
 
-1. Add a small tray app that starts/stops `local-piper-server`.
+The repo now includes a Windows background wrapper that Nate's tray can use as the worker:
+
+- `local-piper-server/scripts/start-background-windows.ps1`
+- `local-piper-server/scripts/stop-background-windows.ps1`
+- `local-piper-server/scripts/start-background-windows.bat`
+
+Remaining tray work:
+
+1. Add this worker to a tray UI such as N8 Tray.
 2. Poll `http://127.0.0.1:5050/health` and show online/offline state.
-3. Add a startup option for launching the server when Windows signs in.
-4. Document install, uninstall, and troubleshooting steps.
+3. Add a startup option for launching the worker when Windows signs in.
+4. Document install, uninstall, and troubleshooting steps for that tray host.
 
 **macOS/Linux server support**
 1. Verify Piper release archive layout on actual macOS and Linux machines.
