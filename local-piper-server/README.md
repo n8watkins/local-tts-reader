@@ -82,6 +82,21 @@ npm run stop:windows:bg
 
 The background wrapper follows the same shape as Nate's tray-managed modules: single instance guard, PID files, and logs in `local-piper-server/logs/`. A tray host can call `scripts/start-background-windows.ps1` and `scripts/stop-background-windows.ps1` instead of embedding server logic.
 
+Minimal Windows tray:
+
+```powershell
+npm run start:windows:tray
+```
+
+The tray uses the Piper icon and a plain Windows menu: status, Start Server, Stop Server, Open Voices Folder, and Exit. When the tray launches, it starts the server automatically if the server is offline.
+
+Install or remove Windows sign-in startup:
+
+```powershell
+npm run install:windows:tray
+npm run uninstall:windows:tray
+```
+
 You should see:
 ```
 🔊 Piper TTS Local Server

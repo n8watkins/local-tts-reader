@@ -170,6 +170,23 @@ cd local-piper-server
 npm run stop:windows:bg
 ```
 
+Minimal Windows tray:
+
+```powershell
+cd local-piper-server
+npm run start:windows:tray
+```
+
+The tray uses the Piper icon and a plain Windows menu: status, Start Server, Stop Server, Open Voices Folder, and Exit. It starts the server automatically when the tray launches if the server is offline.
+
+Install or remove Windows sign-in startup:
+
+```powershell
+cd local-piper-server
+npm run install:windows:tray
+npm run uninstall:windows:tray
+```
+
 You should see:
 ```
 🔊 Piper TTS Local Server
@@ -301,7 +318,8 @@ Chrome Manifest V3 service workers cannot play audio directly, so Piper audio pl
 - [x] Multiple voice management (install, test, favorite, delete)
 - [x] Keyboard shortcut to trigger reading
 - [x] Cross-platform Piper binary path configuration
-- [ ] Windows tray helper (auto-start server)
+- [x] Minimal Windows tray helper
+- [ ] Windows tray runtime verification
 - [x] macOS/Linux launch script
 - [ ] macOS/Linux real-machine verification
 
@@ -315,20 +333,17 @@ Chrome Manifest V3 service workers cannot play audio directly, so Piper audio pl
 5. For browser fallback playback, show an indeterminate or elapsed-only state because Chrome's browser TTS API does not expose chunk progress.
 
 **Windows tray helper**
-This is useful for Windows users who do not want to keep a terminal open. It should be a separate helper app rather than hidden inside the extension.
-
-The repo now includes a Windows background wrapper that Nate's tray can use as the worker:
+This is useful for Windows users who do not want to keep a terminal open. The repo includes two small pieces:
 
 - `local-piper-server/scripts/start-background-windows.ps1`
 - `local-piper-server/scripts/stop-background-windows.ps1`
 - `local-piper-server/scripts/start-background-windows.bat`
+- `local-piper-server/scripts/piper-tray-windows.ps1`
+- `local-piper-server/scripts/start-piper-tray-windows.bat`
 
-Remaining tray work:
+The tray intentionally uses the default Windows menu and only exposes status, Start Server, Stop Server, Open Voices Folder, and Exit. It also starts the server automatically when the tray launches.
 
-1. Add this worker to a tray UI such as N8 Tray.
-2. Poll `http://127.0.0.1:5050/health` and show online/offline state.
-3. Add a startup option for launching the worker when Windows signs in.
-4. Document install, uninstall, and troubleshooting steps for that tray host.
+Remaining work: run the tray on Windows and fix any runtime issues found there.
 
 **macOS/Linux server support**
 1. Verify Piper release archive layout on actual macOS and Linux machines.
