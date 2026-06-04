@@ -370,12 +370,17 @@ function OptionsApp() {
     persist({ favorites: nextFavorites });
   }
 
-  function testVoice(filename) {
-    setTestingVoice(filename || '__default__');
+  function testVoice(settings = {}) {
+    const testSettings = {
+      voice: settings.voice || '',
+      rate: Number.parseFloat(settings.rate ?? 1.0),
+      volume: Number.parseFloat(settings.volume ?? 1.0),
+    };
+    setTestingVoice(testSettings.voice || '__default__');
     chrome.runtime.sendMessage({
       type: 'test-voice',
-      text: `This is a test of the voice ${formatVoiceName(filename)}.`,
-      settings: { voice: filename, rate: 1.0, volume: 1.0 },
+      text: `This is a test of the voice ${formatVoiceName(testSettings.voice)}.`,
+      settings: testSettings,
     }, (response) => {
       setTestingVoice('');
       const runtimeErr = chrome.runtime.lastError;
@@ -541,7 +546,7 @@ function OptionsApp() {
                       <div className="profile-edit-actions">
                         <button className="btn btn-primary btn-sm" onClick={() => saveEdit(profile.id)}>Save</button>
                         <button className="btn btn-ghost btn-sm" onClick={() => setEditingId('')}>Cancel</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => testVoice(draft.voice || '')}>{testingVoice === (draft.voice || '__default__') ? 'Playing…' : '▶ Test'}</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => testVoice(draft)}>{testingVoice === (draft.voice || '__default__') ? 'Playing…' : '▶ Test'}</button>
                       </div>
                     </div>
                   )}
@@ -593,7 +598,7 @@ function OptionsApp() {
                     <span className="voice-card-file">{formatBytes(voiceSizes[voice]) ? `${voice}  ·  ${formatBytes(voiceSizes[voice])}` : voice}</span>
                   </div>
                   <div className="voice-card-btns">
-                    <button className="btn btn-ghost btn-sm" onClick={() => testVoice(voice)}>{testingVoice === voice ? 'Playing…' : '▶ Test'}</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => testVoice({ voice })}>{testingVoice === voice ? 'Playing…' : '▶ Test'}</button>
                     <button className="btn btn-danger btn-sm" onClick={() => deleteVoice(voice)}>Delete</button>
                   </div>
                 </div>
