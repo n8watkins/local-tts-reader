@@ -38,12 +38,37 @@ function markRuntimeUnavailable() {
   }
 }
 
+function getRuntimeLastError() {
+  try {
+    return chrome.runtime.lastError || null;
+  } catch (error) {
+    if (isRuntimeUnavailableError(error)) {
+      markRuntimeUnavailable();
+      return error;
+    }
+    console.warn("[Piper TTS] runtime lastError failed", error);
+    return error;
+  }
+}
+
+function safeRuntimeCallback(callback) {
+  return (...args) => {
+    if (_runtimeUnavailable) return;
+    try {
+      callback(...args);
+    } catch (error) {
+      if (isRuntimeUnavailableError(error)) markRuntimeUnavailable();
+      else console.warn("[Piper TTS] runtime callback failed", error);
+    }
+  };
+}
+
 function sendRuntimeMessage(message, callback) {
   if (_runtimeUnavailable) return;
 
   try {
     const maybePromise = callback
-      ? chrome.runtime.sendMessage(message, callback)
+      ? chrome.runtime.sendMessage(message, safeRuntimeCallback(callback))
       : chrome.runtime.sendMessage(message);
 
     if (maybePromise?.catch) {
@@ -66,20 +91,25 @@ function applyPlaybackState(state) {
   updateOverlay(_localPlaying, _localPaused, state.progress);
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.type === "playback-state") {
-    applyPlaybackState(message.state);
-    return;
-  }
-  if (message.type === "get-selection") {
-    const text = window.getSelection()?.toString().trim() || _lastSelection;
-    sendResponse({ text });
-    return;
-  }
-  if (message.type === "show-hint") {
-    showHint(message.message || "");
-  }
-});
+try {
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.type === "playback-state") {
+      applyPlaybackState(message.state);
+      return;
+    }
+    if (message.type === "get-selection") {
+      const text = window.getSelection()?.toString().trim() || _lastSelection;
+      sendResponse({ text });
+      return;
+    }
+    if (message.type === "show-hint") {
+      showHint(message.message || "");
+    }
+  });
+} catch (error) {
+  if (isRuntimeUnavailableError(error)) markRuntimeUnavailable();
+  else console.warn("[Piper TTS] runtime listener failed", error);
+}
 
 // Stop when this tab navigates away or closes
 window.addEventListener("pagehide", () => {
@@ -288,7 +318,7 @@ function fmtVol(v) {
 
 function adjustVolume(delta) {
   sendRuntimeMessage({ type: "adjust-volume", delta }, (resp) => {
-    const error = chrome.runtime.lastError;
+    const error = getRuntimeLastError();
     if (error) {
       if (isRuntimeUnavailableError(error)) markRuntimeUnavailable();
       return;
@@ -417,7 +447,7 @@ function updateOverlay(isPlaying, isPaused, progress = null) {
 
 // One initial sync; later changes are pushed by background.js via playback-state.
 sendRuntimeMessage({ type: "get-playback-state" }, (resp) => {
-  const error = chrome.runtime.lastError;
+  const error = getRuntimeLastError();
   if (error) {
     if (isRuntimeUnavailableError(error)) markRuntimeUnavailable();
     return;
