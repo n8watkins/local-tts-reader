@@ -194,22 +194,33 @@ function resetProgress() {
 }
 
 function playbackStateForTab(tabId) {
-  const fromContentTab = tabId != null;
-  const isSource = !fromContentTab || _playingSourceTabId === null || tabId === _playingSourceTabId;
   return {
-    isPlaying: _isPlayingPiper && isSource,
-    isPaused:  _isPausedPiper && isSource,
+    isPlaying: _isPlayingPiper,
+    isPaused:  _isPausedPiper,
     volume:    _currentVolume,
-    progress:  isSource ? _playbackProgress : { active: false, engine: null, current: 0, total: 0, percent: null, label: "" }
+    progress:  _playbackProgress
   };
 }
 
-function notifyPlaybackState(tabId = _playingSourceTabId) {
-  if (tabId == null) return;
+function sendPlaybackStateToTab(tabId) {
   chrome.tabs.sendMessage(tabId, {
     type: "playback-state",
     state: playbackStateForTab(tabId)
   }).catch(() => {});
+}
+
+function notifyPlaybackState(tabId = null) {
+  if (tabId != null) {
+    sendPlaybackStateToTab(tabId);
+    return;
+  }
+
+  chrome.tabs.query({}, (tabs) => {
+    if (chrome.runtime.lastError) return;
+    for (const tab of tabs) {
+      if (tab.id != null) sendPlaybackStateToTab(tab.id);
+    }
+  });
 }
 
 // ─── Piper TTS ───────────────────────────────────────────────────────────────
@@ -267,7 +278,6 @@ async function speakWithPiper(text, settings) {
 
 // ─── Stop All ────────────────────────────────────────────────────────────────
 async function stopAll() {
-  const sourceTabId = _playingSourceTabId;
   _isPlayingPiper    = false;
   _isPausedPiper     = false;
   _playbackEngine    = null;
@@ -277,7 +287,7 @@ async function stopAll() {
   resetProgress();
   _piperOnlineCache.expiresAt = 0; // invalidate cache so next read checks fresh
   await setStopMenuVisible(false);
-  notifyPlaybackState(sourceTabId);
+  notifyPlaybackState();
   chrome.tts.stop();
   try {
     const existing = await chrome.runtime.getContexts({
@@ -438,27 +448,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Offscreen notifies us when queue finishes naturally
   if (message.type === "playback-ended") {
-    const sourceTabId = _playingSourceTabId;
     _isPlayingPiper = false;
     _isPausedPiper  = false;
     _playbackEngine = null;
+    _playingSourceTabId = null;
     _activePiperRequest = null;
     resetProgress();
     setStopMenuVisible(false);
-    notifyPlaybackState(sourceTabId);
+    notifyPlaybackState();
     return;
   }
 
   if (message.type === "playback-error") {
-    const sourceTabId = _playingSourceTabId;
     const request = _activePiperRequest;
     _isPlayingPiper = false;
     _isPausedPiper  = false;
     _playbackEngine = null;
+    _playingSourceTabId = null;
     _activePiperRequest = null;
     resetProgress();
     setStopMenuVisible(false);
-    notifyPlaybackState(sourceTabId);
+    notifyPlaybackState();
 
     (async () => {
       const { fallback = true } = await chrome.storage.local.get("fallback");
@@ -487,9 +497,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
-  // Content script polls to drive the overlay — only report playing=true
-  // to the tab that triggered playback (prevents other tabs from showing the
-  // overlay and hitting the stop branch when their Alt+Shift+R fires).
+  // Content scripts use this once on startup; playback changes are pushed to
+  // every tab so the overlay follows the user across normal webpages.
   if (message.type === "get-playback-state") {
     sendResponse(playbackStateForTab(sender.tab?.id));
     return; // synchronous
