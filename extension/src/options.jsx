@@ -16,7 +16,6 @@ const TABS = ['profiles', 'voices', 'settings', 'about', 'credits'];
 const CHROME_COMMANDS = [
   ['read-selection', 'Read / Stop toggle'],
   ['pause-resume', 'Pause / Resume'],
-  ['stop-playback', 'Stop / Exit'],
 ];
 
 function tabFromHash() {
@@ -693,7 +692,7 @@ function OptionsApp() {
               <li><span className="flow-step">3</span><div>The text is split into sentence chunks and sent to the <strong>local Node.js server</strong>, which calls <code>piper.exe</code> and streams back WAV audio.</div></li>
               <li><span className="flow-step">4</span><div>An <strong>offscreen document</strong> receives each chunk and plays it through the Web Audio API — Chrome's Manifest V3 service workers can't play audio directly.</div></li>
               <li><span className="flow-step">5</span><div>If Piper is offline or generation fails and <em>Browser TTS fallback</em> is on (Settings), the browser's built-in voice is used instead.</div></li>
-              <li><span className="flow-step">6</span><div>Use <strong>keyboard shortcuts</strong> across tabs: <kbd>Alt+Shift+R</kbd> to read/stop selected text, <kbd>Alt+Shift+D</kbd> to pause/resume, and <kbd>Alt+Shift+E</kbd> to stop.</div></li>
+              <li><span className="flow-step">6</span><div>Use <strong>keyboard shortcuts</strong> across tabs: <kbd>Alt+Shift+R</kbd> to read selected text or stop playback, and <kbd>Alt+Shift+D</kbd> to pause/resume.</div></li>
             </ol>
           </div>
           <div className="credits-section">

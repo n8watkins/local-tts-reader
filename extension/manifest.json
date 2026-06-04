@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Piper TTS",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Highlight text, right-click, and hear it read aloud with local Piper voices — no cloud, no API keys.",
   "permissions": [
     "contextMenus",
@@ -43,12 +43,6 @@
         "default": "Alt+Shift+D"
       },
       "description": "Pause or resume playback"
-    },
-    "stop-playback": {
-      "suggested_key": {
-        "default": "Alt+Shift+E"
-      },
-      "description": "Stop playback"
     }
   },
   "icons": {

@@ -409,10 +409,6 @@ chrome.commands.onCommand.addListener((command) => {
   }
   if (command === "pause-resume") {
     togglePauseResume().catch(err => console.error("[command:pause-resume]", err));
-    return;
-  }
-  if (command === "stop-playback") {
-    stopAll().catch(err => console.error("[command:stop-playback]", err));
   }
 });
 
