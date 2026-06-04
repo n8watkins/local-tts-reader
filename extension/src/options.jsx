@@ -60,7 +60,7 @@ function VoiceSelect({ value, voices, favorites, onChange }) {
 
   return (
     <select className="form-select profile-voice-sel" value={value || ''} onChange={(event) => onChange(event.target.value)}>
-      <option value="">— None / use default —</option>
+      <option value="">Chrome default voice</option>
       {sorted.map((voice) => (
         <option key={voice} value={voice}>
           {favorites.includes(voice) ? '★ ' : ''}{formatVoiceName(voice)}

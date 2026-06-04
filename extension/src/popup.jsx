@@ -190,7 +190,7 @@ function PopupApp() {
         <button className="btn-nav" title="Previous profile" disabled={profiles.length <= 1} onClick={() => selectProfile(activeIdx - 1)}>‹</button>
         <div className="profile-info">
           <span className="profile-name">{activeProfile?.name || 'No profiles'}</span>
-          <span className="profile-voice">{activeProfile ? formatVoiceName(activeProfile.voice, 'No voice set — open Settings') : 'Open Settings to create one'}</span>
+          <span className="profile-voice">{activeProfile ? formatVoiceName(activeProfile.voice) : 'Open Settings to create one'}</span>
         </div>
         <button className="btn-nav" title="Next profile" disabled={profiles.length <= 1} onClick={() => selectProfile(activeIdx + 1)}>›</button>
         <button className="btn-add-profile" title="New profile" onClick={() => {

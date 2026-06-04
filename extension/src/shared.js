@@ -16,7 +16,7 @@ export function defaultProfile() {
   return { id: 'default', name: 'Profile 1', voice: '', rate: 1.0, volume: 1.0 };
 }
 
-export function formatVoiceName(filename, empty = '— None —') {
+export function formatVoiceName(filename, empty = 'Chrome default voice') {
   if (!filename) return empty;
   const base = filename.replace(/\.onnx$/, '');
   const parts = base.split('-');

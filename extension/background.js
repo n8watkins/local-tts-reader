@@ -115,13 +115,14 @@ async function ensureOffscreenDocument() {
 
 // ─── Browser TTS ─────────────────────────────────────────────────────────────
 function speakWithBrowser(text, settings) {
+  const effectiveSettings = settings || {};
   const generation = ++_browserSpeakGeneration;
   _activePiperRequest = null;
   chrome.tts.stop();
   _isPlayingPiper = true;   // reuse the playing flag so popup + keyboard toggle work
   _isPausedPiper  = false;
   _playbackEngine = "browser";
-  _currentVolume  = Math.min(1, settings.volume ?? 1.0); // browser TTS capped at 1
+  _currentVolume  = Math.min(1, effectiveSettings.volume ?? 1.0); // browser TTS capped at 1
   _playbackProgress = {
     active: true,
     engine: "browser",
@@ -133,7 +134,7 @@ function speakWithBrowser(text, settings) {
   setStopMenuVisible(true);
   notifyPlaybackState();
   chrome.tts.speak(text, {
-    rate:   settings.rate   ?? 1.0,
+    rate:   effectiveSettings.rate   ?? 1.0,
     pitch:  1.0,
     volume: _currentVolume,
     enqueue: false,
@@ -287,16 +288,22 @@ async function stopAll() {
   } catch (_) {}
 }
 
-// ─── Speak with profile settings (Piper → browser fallback) ──────────────────
+// ─── Speak with profile settings (Piper voice or Chrome default) ──────────────
 async function speakText(text, settings) {
+  const effectiveSettings = settings || {};
+  if (!effectiveSettings.voice) {
+    speakWithBrowser(text, effectiveSettings);
+    return;
+  }
+
   try {
-    await speakWithPiper(text, settings);
+    await speakWithPiper(text, effectiveSettings);
   } catch (err) {
     console.error("Piper failed:", err.message);
     const { fallback = true } = await chrome.storage.local.get("fallback");
     if (fallback) {
       console.log("Falling back to browser TTS");
-      speakWithBrowser(text, settings);
+      speakWithBrowser(text, effectiveSettings);
     }
   }
 }
@@ -489,7 +496,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "test-voice") {
-    const { text, settings } = message;
+    const { text, settings = {} } = message;
+    if (!settings.voice) {
+      speakWithBrowser(text, settings);
+      sendResponse({ ok: true });
+      return;
+    }
+
     // Use speakWithPiper directly so errors can surface to the popup.
     // Apply the browser-TTS fallback manually here so the popup still gets
     // a meaningful { ok: false } when both Piper and fallback are unavailable.
