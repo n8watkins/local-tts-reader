@@ -1,6 +1,6 @@
 {
   "name": "piper-tts",
-  "version": "1.0.6",
+  "version": "1.0.11",
   "private": true,
   "scripts": {
     "build": "node tools/build-extension-ui.mjs",

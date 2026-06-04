@@ -165,6 +165,10 @@ function PopupApp() {
     setPlayback({ isPlaying: false, isPaused: false, progress: null });
   }
 
+  function openSettings() {
+    chrome.tabs.create({ url: chrome.runtime.getURL('options.html#settings') });
+  }
+
   const progress = playback?.progress;
   const showProgress = playback?.isPlaying || progress?.active;
   const progressPercent = useMemo(() => {
@@ -179,7 +183,7 @@ function PopupApp() {
         <span className="app-title">Piper TTS</span>
         <span className={`status-dot ${status}`} title={status === 'online' ? 'Piper online' : status === 'offline' ? 'Piper offline' : 'Checking...'} />
         <span className="app-version">{version}</span>
-        <button className="btn-gear" title="Open settings" onClick={() => chrome.runtime.openOptionsPage()}>⚙</button>
+        <button className="btn-gear" title="Open settings" onClick={openSettings}>⚙</button>
       </header>
 
       <div className="profile-card">

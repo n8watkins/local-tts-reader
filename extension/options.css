@@ -758,9 +758,25 @@ body {
   justify-content: flex-end;
 }
 
-/* ─── Keyboard Shortcut Rebind UI ────────────────────────────────────────────── */
+/* ─── Keyboard Shortcuts ─────────────────────────────────────────────────────── */
 .settings-shortcut-disclaimer {
   margin-bottom: 14px;
+}
+
+.shortcut-manager-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid #313244;
+  margin-bottom: 2px;
+}
+
+.shortcut-manager-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .shortcut-row {
@@ -786,22 +802,16 @@ body {
   border-radius: 6px;
   color: #cba6f7;
   padding: 5px 12px;
-  cursor: pointer;
+  cursor: default;
   outline: none;
   min-width: 120px;
   text-align: center;
   transition: border-color 0.15s, background 0.15s;
+  display: inline-block;
 }
-.shortcut-bind-btn:hover { background: #45475a; }
-.shortcut-bind-btn.listening {
-  border-color: #f9e2af;
-  color: #f9e2af;
-  background: #3a2e1e;
-  animation: blink-border 0.8s ease-in-out infinite;
-}
-@keyframes blink-border {
-  0%, 100% { border-color: #f9e2af; }
-  50%       { border-color: #6a5a30; }
+.shortcut-bind-btn:hover { background: #313244; }
+.shortcut-bind-btn.is-unset {
+  color: #f38ba8;
 }
 
 /* ─── Voice Quality Badge ────────────────────────────────────────────────────── */

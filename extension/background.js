@@ -131,6 +131,7 @@ function speakWithBrowser(text, settings) {
     label: "Browser voice"
   };
   setStopMenuVisible(true);
+  notifyPlaybackState();
   chrome.tts.speak(text, {
     rate:   settings.rate   ?? 1.0,
     pitch:  1.0,
@@ -144,6 +145,7 @@ function speakWithBrowser(text, settings) {
         _playbackEngine = null;
         resetProgress();
         setStopMenuVisible(false);
+        notifyPlaybackState();
       }
       if (e.type === "error") {
         console.error("tts error:", e.errorMessage);
@@ -152,6 +154,7 @@ function speakWithBrowser(text, settings) {
         _playbackEngine = null;
         resetProgress();
         setStopMenuVisible(false);
+        notifyPlaybackState();
       }
     }
   });
@@ -189,6 +192,25 @@ function resetProgress() {
   _playbackProgress = { active: false, engine: null, current: 0, total: 0, percent: null, label: "" };
 }
 
+function playbackStateForTab(tabId) {
+  const fromContentTab = tabId != null;
+  const isSource = !fromContentTab || _playingSourceTabId === null || tabId === _playingSourceTabId;
+  return {
+    isPlaying: _isPlayingPiper && isSource,
+    isPaused:  _isPausedPiper && isSource,
+    volume:    _currentVolume,
+    progress:  isSource ? _playbackProgress : { active: false, engine: null, current: 0, total: 0, percent: null, label: "" }
+  };
+}
+
+function notifyPlaybackState(tabId = _playingSourceTabId) {
+  if (tabId == null) return;
+  chrome.tabs.sendMessage(tabId, {
+    type: "playback-state",
+    state: playbackStateForTab(tabId)
+  }).catch(() => {});
+}
+
 // ─── Piper TTS ───────────────────────────────────────────────────────────────
 async function speakWithPiper(text, settings) {
   const online = await checkPiperOnline();
@@ -210,6 +232,7 @@ async function speakWithPiper(text, settings) {
     label: "Starting"
   };
   setStopMenuVisible(true);
+  notifyPlaybackState();
   try {
     await ensureOffscreenDocument();
   } catch (err) {
@@ -220,6 +243,7 @@ async function speakWithPiper(text, settings) {
     _activePiperRequest = null;
     resetProgress();
     setStopMenuVisible(false);
+    notifyPlaybackState();
     throw err;
   }
   chrome.runtime.sendMessage({
@@ -236,11 +260,13 @@ async function speakWithPiper(text, settings) {
     _activePiperRequest = null;
     resetProgress();
     setStopMenuVisible(false);
+    notifyPlaybackState();
   });
 }
 
 // ─── Stop All ────────────────────────────────────────────────────────────────
 async function stopAll() {
+  const sourceTabId = _playingSourceTabId;
   _isPlayingPiper    = false;
   _isPausedPiper     = false;
   _playbackEngine    = null;
@@ -250,6 +276,7 @@ async function stopAll() {
   resetProgress();
   _piperOnlineCache.expiresAt = 0; // invalidate cache so next read checks fresh
   await setStopMenuVisible(false);
+  notifyPlaybackState(sourceTabId);
   chrome.tts.stop();
   try {
     const existing = await chrome.runtime.getContexts({
@@ -272,6 +299,74 @@ async function speakText(text, settings) {
       speakWithBrowser(text, settings);
     }
   }
+}
+
+async function getActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab || null;
+}
+
+async function getTabSelection(tab) {
+  if (!tab?.id) return "";
+  try {
+    const response = await chrome.tabs.sendMessage(tab.id, { type: "get-selection" });
+    return response?.text?.trim() || "";
+  } catch (_) {
+    return "";
+  }
+}
+
+function showTabHint(tab, message) {
+  if (!tab?.id) return;
+  chrome.tabs.sendMessage(tab.id, { type: "show-hint", message }).catch(() => {});
+}
+
+async function readSelectionFromActiveTab() {
+  if (_isPlayingPiper) {
+    await stopAll();
+    return;
+  }
+
+  const tab = await getActiveTab();
+  const text = await getTabSelection(tab);
+  if (!text) {
+    showTabHint(tab, "Select text first");
+    return;
+  }
+
+  const { profiles, activeId } = await getProfileState();
+  const profile = profiles.find(p => p.id === activeId) || profiles[0];
+  if (!profile) return;
+
+  _playingSourceTabId = tab.id;
+  await speakText(text, profile);
+}
+
+async function togglePauseResume() {
+  if (_isPausedPiper) {
+    _isPausedPiper = false;
+    if (_playbackEngine === "browser") {
+      chrome.tts.resume();
+    } else {
+      const existing = await chrome.runtime.getContexts({
+        contextTypes: ["OFFSCREEN_DOCUMENT"],
+        documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)]
+      }).catch(() => []);
+      if (existing.length > 0) chrome.runtime.sendMessage({ type: "resume-audio" }).catch(() => {});
+    }
+  } else if (_isPlayingPiper) {
+    _isPausedPiper = true;
+    if (_playbackEngine === "browser") {
+      chrome.tts.pause();
+    } else {
+      const existing = await chrome.runtime.getContexts({
+        contextTypes: ["OFFSCREEN_DOCUMENT"],
+        documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)]
+      }).catch(() => []);
+      if (existing.length > 0) chrome.runtime.sendMessage({ type: "pause-audio" }).catch(() => {});
+    }
+  }
+  notifyPlaybackState();
 }
 
 // ─── Context Menu Click Handler ───────────────────────────────────────────────
@@ -307,6 +402,20 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   await speakText(text, profile);
 });
 
+chrome.commands.onCommand.addListener((command) => {
+  if (command === "read-selection") {
+    readSelectionFromActiveTab().catch(err => console.error("[command:read-selection]", err));
+    return;
+  }
+  if (command === "pause-resume") {
+    togglePauseResume().catch(err => console.error("[command:pause-resume]", err));
+    return;
+  }
+  if (command === "stop-playback") {
+    stopAll().catch(err => console.error("[command:stop-playback]", err));
+  }
+});
+
 // ─── Messages from Popup / Content Script / Offscreen ────────────────────────
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Content script tab is navigating/closing — stop if it was the source tab
@@ -326,16 +435,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Offscreen notifies us when queue finishes naturally
   if (message.type === "playback-ended") {
+    const sourceTabId = _playingSourceTabId;
     _isPlayingPiper = false;
     _isPausedPiper  = false;
     _playbackEngine = null;
     _activePiperRequest = null;
     resetProgress();
     setStopMenuVisible(false);
+    notifyPlaybackState(sourceTabId);
     return;
   }
 
   if (message.type === "playback-error") {
+    const sourceTabId = _playingSourceTabId;
     const request = _activePiperRequest;
     _isPlayingPiper = false;
     _isPausedPiper  = false;
@@ -343,6 +455,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     _activePiperRequest = null;
     resetProgress();
     setStopMenuVisible(false);
+    notifyPlaybackState(sourceTabId);
 
     (async () => {
       const { fallback = true } = await chrome.storage.local.get("fallback");
@@ -367,6 +480,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       percent: typeof message.percent === "number" ? Math.max(0, Math.min(1, message.percent)) : null,
       label: message.label || (total > 0 ? `${current}/${total}` : "")
     };
+    notifyPlaybackState();
     return;
   }
 
@@ -374,13 +488,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // to the tab that triggered playback (prevents other tabs from showing the
   // overlay and hitting the stop branch when their Alt+Shift+R fires).
   if (message.type === "get-playback-state") {
-    const isSource = _playingSourceTabId === null || sender.tab?.id === _playingSourceTabId;
-    sendResponse({
-      isPlaying: _isPlayingPiper && isSource,
-      isPaused:  _isPausedPiper,
-      volume:    _currentVolume,
-      progress:  _playbackProgress
-    });
+    sendResponse(playbackStateForTab(sender.tab?.id));
     return; // synchronous
   }
 
@@ -453,31 +561,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Keyboard shortcut: Alt+Shift+D — pause/resume toggle
   if (message.type === "keyboard-pause") {
-    (async () => {
-      if (_isPausedPiper) {
-        _isPausedPiper = false;
-        if (_playbackEngine === "browser") {
-          chrome.tts.resume();
-        } else {
-          const existing = await chrome.runtime.getContexts({
-            contextTypes: ["OFFSCREEN_DOCUMENT"],
-            documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)]
-          }).catch(() => []);
-          if (existing.length > 0) chrome.runtime.sendMessage({ type: "resume-audio" }).catch(() => {});
-        }
-      } else if (_isPlayingPiper) {
-        _isPausedPiper = true;
-        if (_playbackEngine === "browser") {
-          chrome.tts.pause();
-        } else {
-          const existing = await chrome.runtime.getContexts({
-            contextTypes: ["OFFSCREEN_DOCUMENT"],
-            documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)]
-          }).catch(() => []);
-          if (existing.length > 0) chrome.runtime.sendMessage({ type: "pause-audio" }).catch(() => {});
-        }
-      }
-    })().catch(err => console.error("[keyboard-pause]", err));
+    togglePauseResume().catch(err => console.error("[keyboard-pause]", err));
     return;
   }
 });

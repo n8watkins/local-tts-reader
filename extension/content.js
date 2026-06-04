@@ -1,42 +1,7 @@
 // ─── Piper TTS — Content Script ──────────────────────────────────────────────
 // Injected into every webpage.
-//   1. Keyboard shortcuts → background.js
+//   1. Selection bridge for Chrome commands
 //   2. Floating "Now Playing" overlay (shadow DOM, bottom-right corner)
-
-// ─── Shortcuts ────────────────────────────────────────────────────────────────
-const DEFAULT_SHORTCUTS = { read: "Alt+Shift+R", pause: "Alt+Shift+D", stop: "Alt+Shift+E" };
-let activeShortcuts = { ...DEFAULT_SHORTCUTS };
-
-chrome.storage.local.get({ shortcuts: DEFAULT_SHORTCUTS }, ({ shortcuts }) => {
-  activeShortcuts = shortcuts;
-});
-chrome.storage.onChanged.addListener((changes) => {
-  if (changes.shortcuts) activeShortcuts = changes.shortcuts.newValue;
-});
-
-// Use e.code (physical key position) not e.key (character).
-// On non-US keyboards / AltGr active, Alt+R produces e.key="®" — e.code is always "KeyR".
-function comboFromEvent(e) {
-  const MODIFIER_CODES = new Set([
-    "AltLeft","AltRight","ControlLeft","ControlRight",
-    "ShiftLeft","ShiftRight","MetaLeft","MetaRight"
-  ]);
-  if (MODIFIER_CODES.has(e.code)) return "";  // modifier-only press
-
-  const parts = [];
-  if (e.altKey)   parts.push("Alt");
-  if (e.ctrlKey)  parts.push("Ctrl");
-  if (e.shiftKey) parts.push("Shift");
-  if (e.metaKey)  parts.push("Meta");
-
-  // "KeyR" → "R",  "Digit1" → "1",  "Space" / "F1" → as-is
-  const keyName =
-    e.code.startsWith("Key")   ? e.code.slice(3)  :
-    e.code.startsWith("Digit") ? e.code.slice(5)  :
-    e.code;
-  parts.push(keyName);
-  return parts.join("+");
-}
 
 // Cache last known selection so modifier keys can't clear it before our handler reads it
 let _lastSelection = "";
@@ -52,58 +17,73 @@ document.addEventListener("keyup",           _snapshotSel, true); // keyboard se
 let _localPlaying  = false;
 let _localPaused   = false;
 let _currentVolume = 1.0;
+let _runtimeUnavailable = false;
+let _playbackPollTimer = null;
 
-// Capture-phase keydown — fires before any page handler
-document.addEventListener("keydown", (e) => {
-  // Snapshot selection right now — some pages clear it when a modifier key fires,
-  // so we grab it on each keydown to make sure we have the freshest non-empty value.
-  const sel = window.getSelection()?.toString().trim();
-  if (sel) _lastSelection = sel;
+function isRuntimeUnavailableError(error) {
+  const message = String(error?.message || error || "");
+  return /Extension context invalidated|Receiving end does not exist/i.test(message);
+}
 
-  const combo = comboFromEvent(e);
-  if (!combo) return;
+function isExpectedRuntimeMessageError(error) {
+  const message = String(error?.message || error || "");
+  return isRuntimeUnavailableError(error) || /message port closed|message channel closed/i.test(message);
+}
 
-  // ── Read / Stop toggle (Alt+Shift+R by default) ──────────────────────────────
-  if (combo === activeShortcuts.read) {
-    e.preventDefault();
-    if (_localPlaying) {
-      // Optimistic stop
-      _localPlaying = false;
-      _localPaused  = false;
-      updateOverlay(false, false);
-      chrome.runtime.sendMessage({ type: "stop-all" });
-    } else {
-      const text = window.getSelection()?.toString().trim() || _lastSelection;
-      if (!text) { showHint("Select text first"); return; }
-      // Optimistic start
-      _localPlaying = true;
-      _localPaused  = false;
-      updateOverlay(true, false);
-      chrome.runtime.sendMessage({ type: "keyboard-read", text });
-    }
-
-  // ── Pause / Resume (Alt+Shift+D by default) ───────────────────────────────────
-  } else if (combo === activeShortcuts.pause) {
-    e.preventDefault();
-    if (_localPlaying) {
-      _localPaused = !_localPaused;
-      updateOverlay(_localPlaying, _localPaused); // instant visual feedback
-    }
-    chrome.runtime.sendMessage({ type: "keyboard-pause" });
-
-  // ── Stop / Exit (Alt+Shift+E by default) ─────────────────────────────────────
-  } else if (combo === activeShortcuts.stop) {
-    e.preventDefault();
-    _localPlaying = false;
-    _localPaused  = false;
-    updateOverlay(false, false);
-    chrome.runtime.sendMessage({ type: "stop-all" });
+function markRuntimeUnavailable() {
+  _runtimeUnavailable = true;
+  if (_playbackPollTimer) {
+    clearInterval(_playbackPollTimer);
+    _playbackPollTimer = null;
   }
-}, true);
+}
+
+function sendRuntimeMessage(message, callback) {
+  if (_runtimeUnavailable) return;
+
+  try {
+    const maybePromise = callback
+      ? chrome.runtime.sendMessage(message, callback)
+      : chrome.runtime.sendMessage(message);
+
+    if (maybePromise?.catch) {
+      maybePromise.catch((error) => {
+        if (isRuntimeUnavailableError(error)) markRuntimeUnavailable();
+        else if (!isExpectedRuntimeMessageError(error)) console.warn("[Piper TTS] runtime message failed", error);
+      });
+    }
+  } catch (error) {
+    if (isRuntimeUnavailableError(error)) markRuntimeUnavailable();
+    else if (!isExpectedRuntimeMessageError(error)) console.warn("[Piper TTS] runtime message failed", error);
+  }
+}
+
+function applyPlaybackState(state) {
+  if (!state) return;
+  _localPlaying = !!state.isPlaying;
+  _localPaused  = !!state.isPaused;
+  if (state.volume != null) _currentVolume = state.volume;
+  updateOverlay(_localPlaying, _localPaused, state.progress);
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === "playback-state") {
+    applyPlaybackState(message.state);
+    return;
+  }
+  if (message.type === "get-selection") {
+    const text = window.getSelection()?.toString().trim() || _lastSelection;
+    sendResponse({ text });
+    return;
+  }
+  if (message.type === "show-hint") {
+    showHint(message.message || "");
+  }
+});
 
 // Stop when this tab navigates away or closes
 window.addEventListener("pagehide", () => {
-  chrome.runtime.sendMessage({ type: "tab-unloading" });
+  sendRuntimeMessage({ type: "tab-unloading" });
 });
 
 // ─── Overlay ──────────────────────────────────────────────────────────────────
@@ -307,8 +287,13 @@ function fmtVol(v) {
 }
 
 function adjustVolume(delta) {
-  chrome.runtime.sendMessage({ type: "adjust-volume", delta }, (resp) => {
-    if (chrome.runtime.lastError || !resp?.ok) return;
+  sendRuntimeMessage({ type: "adjust-volume", delta }, (resp) => {
+    const error = chrome.runtime.lastError;
+    if (error) {
+      if (isRuntimeUnavailableError(error)) markRuntimeUnavailable();
+      return;
+    }
+    if (!resp?.ok) return;
     _currentVolume = resp.volume;
     // Update volume display immediately without a full re-render
     const bar = overlayShadow?.querySelector(".bar");
@@ -339,9 +324,10 @@ function updateOverlay(isPlaying, isPaused, progress = null) {
     const btnPP = document.createElement("button");
     btnPP.className = "btn btn-pp";
     btnPP.addEventListener("click", () => {
+      if (!_localPlaying) return;
       _localPaused = !_localPaused;
       updateOverlay(_localPlaying, _localPaused); // instant update
-      chrome.runtime.sendMessage({ type: "keyboard-pause" });
+      sendRuntimeMessage({ type: "keyboard-pause" });
     });
 
     // ── Status label ──
@@ -387,7 +373,7 @@ function updateOverlay(isPlaying, isPaused, progress = null) {
     btnClose.addEventListener("click", () => {
       _localPlaying = false;
       _localPaused  = false;
-      chrome.runtime.sendMessage({ type: "stop-all" });
+      sendRuntimeMessage({ type: "stop-all" });
       removeOverlay();
     });
 
@@ -429,13 +415,12 @@ function updateOverlay(isPlaying, isPaused, progress = null) {
   }
 }
 
-// Poll background every second — source of truth, corrects optimistic state if needed
-setInterval(() => {
-  chrome.runtime.sendMessage({ type: "get-playback-state" }, (resp) => {
-    if (chrome.runtime.lastError || !resp) return;
-    _localPlaying = resp.isPlaying;
-    _localPaused  = resp.isPaused;
-    if (resp.volume != null) _currentVolume = resp.volume;
-    updateOverlay(resp.isPlaying, resp.isPaused, resp.progress);
-  });
-}, 1000);
+// One initial sync; later changes are pushed by background.js via playback-state.
+sendRuntimeMessage({ type: "get-playback-state" }, (resp) => {
+  const error = chrome.runtime.lastError;
+  if (error) {
+    if (isRuntimeUnavailableError(error)) markRuntimeUnavailable();
+    return;
+  }
+  applyPlaybackState(resp);
+});

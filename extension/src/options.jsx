@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  comboFromEvent,
-  DEFAULT_SHORTCUTS,
   defaultProfile,
   fmt,
   formatBytes,
@@ -15,6 +13,16 @@ import {
 } from './shared.js';
 
 const TABS = ['profiles', 'voices', 'settings', 'about', 'credits'];
+const CHROME_COMMANDS = [
+  ['read-selection', 'Read / Stop toggle'],
+  ['pause-resume', 'Pause / Resume'],
+  ['stop-playback', 'Stop / Exit'],
+];
+
+function tabFromHash() {
+  const route = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+  return TABS.includes(route) ? route : 'profiles';
+}
 
 function IconPencil() {
   return (
@@ -80,7 +88,7 @@ function Modal({ modal, onConfirm, onCancel }) {
 }
 
 function OptionsApp() {
-  const [tab, setTab] = useState('profiles');
+  const [tab, setTab] = useState(tabFromHash);
   const [version, setVersion] = useState('');
   const [profiles, setProfiles] = useState([]);
   const [activeId, setActiveId] = useState('');
@@ -88,7 +96,6 @@ function OptionsApp() {
   const [deletedVoices, setDeletedVoices] = useState([]);
   const [favsOnly, setFavsOnly] = useState(false);
   const [fallback, setFallback] = useState(true);
-  const [shortcuts, setShortcuts] = useState(DEFAULT_SHORTCUTS);
   const [voices, setVoices] = useState([]);
   const [voiceSizes, setVoiceSizes] = useState({});
   const [voiceDir, setVoiceDir] = useState('');
@@ -99,7 +106,7 @@ function OptionsApp() {
   const [editingId, setEditingId] = useState('');
   const [editDrafts, setEditDrafts] = useState({});
   const [modal, setModal] = useState(null);
-  const [listeningAction, setListeningAction] = useState('');
+  const [chromeCommands, setChromeCommands] = useState([]);
   const [testingVoice, setTestingVoice] = useState('');
   const createNameRef = useRef(null);
 
@@ -140,6 +147,24 @@ function OptionsApp() {
   function resolveModal(value) {
     modal?.resolve(value);
     setModal(null);
+  }
+
+  async function refreshChromeCommands() {
+    const commands = await chrome.commands.getAll();
+    setChromeCommands(commands);
+  }
+
+  function shortcutForCommand(name) {
+    return chromeCommands.find((command) => command.name === name)?.shortcut || '';
+  }
+
+  function openChromeShortcuts() {
+    chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  }
+
+  function navigateTab(nextTab) {
+    if (!TABS.includes(nextTab)) return;
+    window.location.hash = nextTab;
   }
 
   async function checkServerStatus() {
@@ -195,7 +220,6 @@ function OptionsApp() {
         deletedVoices: [],
         favsOnly: false,
         fallback: true,
-        shortcuts: DEFAULT_SHORTCUTS,
       });
 
       let nextProfiles = stored.profiles;
@@ -219,11 +243,30 @@ function OptionsApp() {
       setDeletedVoices(stored.deletedVoices);
       setFavsOnly(stored.favsOnly);
       setFallback(stored.fallback);
-      setShortcuts({ ...DEFAULT_SHORTCUTS, ...stored.shortcuts });
       const online = await checkServerStatus();
       if (online) await fetchVoices(true);
+      await refreshChromeCommands();
     }
     init();
+  }, []);
+
+  useEffect(() => {
+    const onHashChange = () => setTab(tabFromHash());
+    onHashChange();
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  useEffect(() => {
+    const refreshIfVisible = () => {
+      if (!document.hidden) refreshChromeCommands();
+    };
+    window.addEventListener('focus', refreshChromeCommands);
+    document.addEventListener('visibilitychange', refreshIfVisible);
+    return () => {
+      window.removeEventListener('focus', refreshChromeCommands);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+    };
   }, []);
 
   useEffect(() => {
@@ -233,30 +276,6 @@ function OptionsApp() {
   useEffect(() => {
     if (createOpen) createNameRef.current?.focus();
   }, [createOpen]);
-
-  useEffect(() => {
-    if (!listeningAction) return undefined;
-    const onKey = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (!event.ctrlKey && !event.altKey) return;
-      if (['Alt', 'Control', 'Shift', 'Meta'].includes(event.key)) return;
-      const combo = comboFromEvent(event);
-      const next = { ...shortcuts, [listeningAction]: combo };
-      setShortcuts(next);
-      chrome.storage.local.set({ shortcuts: next });
-      setListeningAction('');
-    };
-    const onClick = (event) => {
-      if (!event.target.closest('.shortcut-bind-btn')) setListeningAction('');
-    };
-    document.addEventListener('keydown', onKey, true);
-    document.addEventListener('click', onClick, true);
-    return () => {
-      document.removeEventListener('keydown', onKey, true);
-      document.removeEventListener('click', onClick, true);
-    };
-  }, [listeningAction, shortcuts]);
 
   function setActive(profileId) {
     setActiveId(profileId);
@@ -425,7 +444,7 @@ function OptionsApp() {
 
       <nav className="tabs" role="tablist">
         {TABS.map((name) => (
-          <button key={name} className={`tab ${tab === name ? 'active' : ''}`} role="tab" onClick={() => setTab(name)}>
+          <button key={name} className={`tab ${tab === name ? 'active' : ''}`} role="tab" aria-selected={tab === name} onClick={() => navigateTab(name)}>
             {name.charAt(0).toUpperCase() + name.slice(1)}
           </button>
         ))}
@@ -636,22 +655,30 @@ function OptionsApp() {
           <div className="settings-group">
             <h3 className="settings-group-title">Keyboard Shortcuts</h3>
             <p className="setting-desc settings-shortcut-disclaimer">
-              These shortcuts work on any webpage while the extension is active.
-              They may conflict with shortcuts used by other extensions or websites —
-              we can't guarantee they'll work everywhere. Click a binding to change it.
+              Default shortcuts are registered as Chrome commands and work across tabs.
+              Rebinding lives in Chrome's extension shortcuts page; this list shows what Chrome currently has assigned.
             </p>
-            {[
-              ['read', 'Read / Stop toggle'],
-              ['pause', 'Pause / Resume'],
-              ['stop', 'Stop / Exit'],
-            ].map(([action, label]) => (
-              <div className="shortcut-row" key={action}>
-                <span className="shortcut-label">{label}</span>
-                <button className={`shortcut-bind-btn ${listeningAction === action ? 'listening' : ''}`} onClick={() => setListeningAction(action)}>
-                  {listeningAction === action ? 'Press keys…' : shortcuts[action] || '—'}
-                </button>
+            <div className="shortcut-manager-row">
+              <div>
+                <span className="setting-label">Chrome shortcut manager</span>
+                <span className="setting-desc">Confirm or rebind the cross-tab shortcuts in Chrome.</span>
               </div>
-            ))}
+              <div className="shortcut-manager-actions">
+                <button className="btn btn-ghost btn-sm" onClick={refreshChromeCommands}>Refresh</button>
+                <button className="btn btn-ghost btn-sm" onClick={openChromeShortcuts}>Open shortcuts ↗</button>
+              </div>
+            </div>
+            {CHROME_COMMANDS.map(([command, label]) => {
+              const shortcut = shortcutForCommand(command);
+              return (
+              <div className="shortcut-row" key={command}>
+                <span className="shortcut-label">{label}</span>
+                <span className={`shortcut-bind-btn ${shortcut ? '' : 'is-unset'}`}>
+                  {shortcut || 'Not set'}
+                </span>
+              </div>
+              );
+            })}
           </div>
         </section>
       )}
@@ -666,7 +693,7 @@ function OptionsApp() {
               <li><span className="flow-step">3</span><div>The text is split into sentence chunks and sent to the <strong>local Node.js server</strong>, which calls <code>piper.exe</code> and streams back WAV audio.</div></li>
               <li><span className="flow-step">4</span><div>An <strong>offscreen document</strong> receives each chunk and plays it through the Web Audio API — Chrome's Manifest V3 service workers can't play audio directly.</div></li>
               <li><span className="flow-step">5</span><div>If Piper is offline or generation fails and <em>Browser TTS fallback</em> is on (Settings), the browser's built-in voice is used instead.</div></li>
-              <li><span className="flow-step">6</span><div>Use <strong>keyboard shortcuts</strong> on any page: <kbd>Alt+Shift+R</kbd> to read/stop selected text, <kbd>Alt+Shift+D</kbd> to pause/resume. Both are rebindable in Settings.</div></li>
+              <li><span className="flow-step">6</span><div>Use <strong>keyboard shortcuts</strong> across tabs: <kbd>Alt+Shift+R</kbd> to read/stop selected text, <kbd>Alt+Shift+D</kbd> to pause/resume, and <kbd>Alt+Shift+E</kbd> to stop.</div></li>
             </ol>
           </div>
           <div className="credits-section">
