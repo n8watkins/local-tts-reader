@@ -122,6 +122,7 @@ function speakWithBrowser(text, settings) {
   _isPausedPiper  = false;
   _playbackEngine = "browser";
   _currentVolume  = Math.min(1, effectiveSettings.volume ?? 1.0); // browser TTS capped at 1
+  _currentRate    = effectiveSettings.rate ?? 1.0;
   _playbackProgress = {
     active: true,
     engine: "browser",
@@ -184,6 +185,7 @@ let _isPausedPiper     = false;
 let _playbackEngine    = null; // "piper" or "browser"
 let _playingSourceTabId = null; // tab that triggered the current playback
 let _currentVolume     = 1.0;  // cached from active profile; sent to content script overlay
+let _currentRate       = 1.0;  // cached from active profile; sent to content script overlay
 let _playbackProgress  = { active: false, engine: null, current: 0, total: 0, percent: null, label: "" };
 let _activePiperRequest = null;
 let _browserSpeakGeneration = 0;
@@ -197,6 +199,8 @@ function playbackStateForTab(tabId) {
     isPlaying: _isPlayingPiper,
     isPaused:  _isPausedPiper,
     volume:    _currentVolume,
+    rate:      _currentRate,
+    engine:    _playbackEngine,
     progress:  _playbackProgress
   };
 }
@@ -234,6 +238,7 @@ async function speakWithPiper(text, settings) {
   _isPausedPiper  = false;
   _playbackEngine = "piper";
   _currentVolume  = settings.volume ?? 1.0;
+  _currentRate    = settings.rate ?? 1.0;
   _playbackProgress = {
     active: true,
     engine: "piper",
@@ -548,31 +553,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
-  // Overlay volume rocker: adjust active profile volume and update live gain
-  if (message.type === "adjust-volume") {
+  // Overlay rocker: change the CURRENT playback's volume/speed only. These are
+  // deliberately NOT written back to the active profile — the profile keeps its
+  // saved presets; this just nudges what's playing right now.
+  if (message.type === "set-live-volume" || message.type === "set-live-rate") {
+    const isVolume = message.type === "set-live-volume";
+    const value = isVolume
+      ? Math.max(0, Math.min(2.0, message.volume ?? 1.0))
+      : Math.max(0.5, Math.min(2.5, message.rate ?? 1.0));
+
+    if (isVolume) _currentVolume = value; else _currentRate = value;
+
+    // Forward to the offscreen Piper player for real-time adjustment. (The
+    // browser-TTS engine can't change mid-utterance, so the overlay disables
+    // the rocker in that case and won't send these.)
     (async () => {
-      const { profiles, activeId } = await getProfileState();
-      const profile = profiles.find(p => p.id === activeId) || profiles[0];
-      if (!profile) { sendResponse({ ok: false }); return; }
-
-      const raw = (profile.volume ?? 1.0) + (message.delta ?? 0);
-      profile.volume = Math.round(Math.max(0, Math.min(2.0, raw)) * 10) / 10;
-      _currentVolume = profile.volume;
-      await chrome.storage.local.set({ profiles });
-
-      // Tell the offscreen player to change gain in real-time
       try {
         const existing = await chrome.runtime.getContexts({
           contextTypes: ["OFFSCREEN_DOCUMENT"],
           documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)]
         }).catch(() => []);
         if (existing.length > 0) {
-          chrome.runtime.sendMessage({ type: "set-volume", volume: profile.volume }).catch(() => {});
+          chrome.runtime.sendMessage(
+            isVolume ? { type: "set-volume", volume: value } : { type: "set-rate", rate: value }
+          ).catch(() => {});
         }
       } catch (_) {}
-
-      sendResponse({ ok: true, volume: profile.volume });
     })();
+
+    sendResponse({ ok: true, value });
     return true; // async response
   }
 

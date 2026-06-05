@@ -12,6 +12,7 @@ let isPlaying = false;
 let isPaused  = false; // true while audio is paused mid-queue
 let playGeneration = 0; // incremented on each new speak request; stale queues self-terminate
 let currentVolume = 1.0; // updated by speak-text and set-volume; used for per-chunk initial gain
+let currentRate = 1.0;   // updated by speak-text and set-rate; applied live + to later chunks
 
 function sendProgress(current, total, label = "") {
   chrome.runtime.sendMessage({
@@ -233,7 +234,9 @@ async function playQueue(chunks, piperUrl, volume, rate, voice, generation) {
         if (!live()) break;
       }
 
-      await playBlob(blob, volume, rate);
+      // Read the live module values (not the original params) so volume/speed
+      // changes from the overlay rocker carry across chunk boundaries.
+      await playBlob(blob, currentVolume, currentRate);
 
     } catch (err) {
       // V3: check sentinel flag, not message string
@@ -294,15 +297,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === "set-volume") {
-    // Real-time gain adjustment from the overlay volume rocker
+    // Real-time gain adjustment from the overlay rocker
     currentVolume = Math.max(0, message.volume ?? 1.0);
     if (currentGainNode) currentGainNode.gain.value = currentVolume;
     return;
   }
 
+  if (message.type === "set-rate") {
+    // Real-time playback-speed adjustment from the overlay rocker. Applies to the
+    // currently playing chunk immediately and to later chunks via currentRate.
+    currentRate = Math.max(0.1, Math.min(4.0, message.rate ?? 1.0));
+    if (currentAudio) currentAudio.playbackRate = currentRate;
+    return;
+  }
+
   if (message.type === "speak-text") {
     const { text, piperUrl, volume = 1.0, rate = 1.0, voice = "" } = message;
-    currentVolume = volume; // track for reference; individual chunks still use passed-in volume
+    currentVolume = volume; // live value; playQueue reads this for each chunk
+    currentRate = rate;     // live value; playQueue reads this for each chunk
 
     // Stop previous playback and bump generation so stale queues self-terminate
     stopAll();

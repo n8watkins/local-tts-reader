@@ -17,6 +17,8 @@ document.addEventListener("keyup",           _snapshotSel, true); // keyboard se
 let _localPlaying  = false;
 let _localPaused   = false;
 let _currentVolume = 1.0;
+let _currentRate   = 1.0;
+let _currentEngine = null; // "piper" | "browser" — browser TTS can't adjust live
 let _runtimeUnavailable = false;
 let _playbackPollTimer = null;
 
@@ -88,6 +90,8 @@ function applyPlaybackState(state) {
   _localPlaying = !!state.isPlaying;
   _localPaused  = !!state.isPaused;
   if (state.volume != null) _currentVolume = state.volume;
+  if (state.rate != null) _currentRate = state.rate;
+  if (state.engine !== undefined) _currentEngine = state.engine;
   updateOverlay(_localPlaying, _localPaused, state.progress);
 }
 
@@ -227,24 +231,103 @@ const OVERLAY_CSS = `
   }
   .btn-pp:hover { background: rgba(203,166,247,0.12); }
 
-  /* Volume rocker */
+  /* Speaker button (opens the hover rocker) */
   .btn-vol {
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 14px;
     color: #a6adc8;
-    width: 20px; height: 20px;
+    width: 24px; height: 24px;
     line-height: 1;
   }
   .btn-vol:hover { background: rgba(166,173,200,0.14); color: #cdd6f4; }
 
-  .vol-val {
+  /* ── Volume + speed hover rocker ── */
+  .vol-wrap { position: relative; display: flex; align-items: center; }
+
+  .rocker {
+    position: absolute;
+    bottom: 100%;
+    right: -6px;
+    /* Transparent bridge so moving the cursor up into the panel doesn't drop the
+       :hover and snap it shut. */
+    padding-bottom: 10px;
+    display: none;
+  }
+  .vol-wrap:hover .rocker,
+  .rocker:hover { display: block; }
+
+  .rocker-panel {
+    background: #1e1e2e;
+    border: 1px solid #45475a;
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.7), 0 0 0 1px rgba(203,166,247,0.08);
+    padding: 10px 12px;
+    width: 184px;
+  }
+
+  .rocker-row {
+    display: grid;
+    grid-template-columns: 44px 1fr 40px;
+    align-items: center;
+    gap: 8px;
+  }
+  .rocker-row + .rocker-row { margin-top: 9px; }
+
+  .rocker-lbl {
     font-size: 11px;
     font-weight: 700;
     color: #a6adc8;
-    min-width: 34px;
-    text-align: center;
-    flex-shrink: 0;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.02em;
+  }
+
+  .rocker-val {
+    font-size: 11px;
+    font-weight: 700;
+    color: #cdd6f4;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rocker-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 999px;
+    background: #45475a;
+    outline: none;
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+  }
+  .rocker-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: #cba6f7;
+    border: none;
+    cursor: pointer;
+  }
+  .rocker-slider::-moz-range-thumb {
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: #cba6f7;
+    border: none;
+    cursor: pointer;
+  }
+
+  .rocker-panel.is-disabled .rocker-slider { cursor: not-allowed; background: #313244; }
+  .rocker-panel.is-disabled .rocker-slider::-webkit-slider-thumb { background: #585b70; cursor: not-allowed; }
+  .rocker-panel.is-disabled .rocker-slider::-moz-range-thumb { background: #585b70; }
+  .rocker-panel.is-disabled .rocker-lbl,
+  .rocker-panel.is-disabled .rocker-val { color: #6c7086; }
+
+  .rocker-note {
+    display: none;
+    margin-top: 9px;
+    font-size: 10px;
+    line-height: 1.35;
+    color: #f9e2af;
   }
 
   /* Close / Stop button */
@@ -316,22 +399,88 @@ function fmtVol(v) {
   return Math.round((v ?? 1.0) * 100) + "%";
 }
 
-function adjustVolume(delta) {
-  sendRuntimeMessage({ type: "adjust-volume", delta }, (resp) => {
-    const error = getRuntimeLastError();
-    if (error) {
-      if (isRuntimeUnavailableError(error)) markRuntimeUnavailable();
-      return;
-    }
-    if (!resp?.ok) return;
-    _currentVolume = resp.volume;
-    // Update volume display immediately without a full re-render
-    const bar = overlayShadow?.querySelector(".bar");
-    if (bar) {
-      const volEl = bar.querySelector(".vol-val");
-      if (volEl) volEl.textContent = fmtVol(_currentVolume);
-    }
-  });
+function fmtRate(v) {
+  return (Math.round((v ?? 1.0) * 10) / 10).toFixed(1) + "×";
+}
+
+// Builds the speaker button + the hover popover holding the Speed and Volume
+// sliders. Adjustments change only the current playback — they are NOT written
+// back to the saved profile (background.js handles set-live-* without storage).
+function buildRocker() {
+  const wrap = document.createElement("div");
+  wrap.className = "vol-wrap";
+
+  const btn = document.createElement("button");
+  btn.className = "btn btn-vol";
+  btn.textContent = "🔊";
+  btn.title = "Volume & speed";
+
+  const rocker = document.createElement("div");
+  rocker.className = "rocker";
+  const panel = document.createElement("div");
+  panel.className = "rocker-panel";
+
+  const makeRow = (label, min, max, step, fmt, msgType, key) => {
+    const row = document.createElement("div");
+    row.className = "rocker-row";
+
+    const lbl = document.createElement("span");
+    lbl.className = "rocker-lbl";
+    lbl.textContent = label;
+
+    const slider = document.createElement("input");
+    slider.className = "rocker-slider";
+    slider.type = "range";
+    slider.min = String(min);
+    slider.max = String(max);
+    slider.step = String(step);
+
+    const val = document.createElement("span");
+    val.className = "rocker-val";
+
+    slider.addEventListener("input", () => {
+      const v = Number.parseFloat(slider.value);
+      val.textContent = fmt(v);
+      if (key === "volume") _currentVolume = v; else _currentRate = v;
+      sendRuntimeMessage({ type: msgType, [key]: v });
+    });
+
+    row.append(lbl, slider, val);
+    return { row, slider, val };
+  };
+
+  const speed = makeRow("Speed", 0.5, 2.5, 0.1, fmtRate, "set-live-rate", "rate");
+  const vol   = makeRow("Volume", 0, 2, 0.05, fmtVol, "set-live-volume", "volume");
+
+  const note = document.createElement("div");
+  note.className = "rocker-note";
+  note.textContent = "Can’t change volume or speed while the default voice is playing.";
+
+  panel.append(speed.row, vol.row, note);
+  rocker.appendChild(panel);
+  wrap.append(btn, rocker);
+
+  wrap._refs = { speed, vol, note, panel };
+  return wrap;
+}
+
+// Reflects current engine + values onto the rocker. Skips moving the sliders
+// while the user is hovering/dragging so periodic state pushes don't fight them.
+function syncRocker(wrap) {
+  if (!wrap || !wrap._refs) return;
+  const { speed, vol, note, panel } = wrap._refs;
+
+  const isBrowser = _currentEngine === "browser";
+  speed.slider.disabled = isBrowser;
+  vol.slider.disabled = isBrowser;
+  panel.classList.toggle("is-disabled", isBrowser);
+  note.style.display = isBrowser ? "block" : "none";
+
+  if (wrap.matches(":hover")) return;
+  speed.slider.value = String(_currentRate);
+  speed.val.textContent = fmtRate(_currentRate);
+  vol.slider.value = String(_currentVolume);
+  vol.val.textContent = fmtVol(_currentVolume);
 }
 
 function updateOverlay(isPlaying, isPaused, progress = null) {
@@ -374,22 +523,8 @@ function updateOverlay(isPlaying, isPaused, progress = null) {
     const sep1 = document.createElement("span");
     sep1.className = "sep";
 
-    // ── Volume rocker: − vol% + ──
-    const btnMinus = document.createElement("button");
-    btnMinus.className = "btn btn-vol";
-    btnMinus.textContent = "−";
-    btnMinus.title = "Volume down";
-    btnMinus.addEventListener("click", () => adjustVolume(-0.1));
-
-    const volVal = document.createElement("span");
-    volVal.className = "vol-val";
-    volVal.textContent = fmtVol(_currentVolume);
-
-    const btnPlus = document.createElement("button");
-    btnPlus.className = "btn btn-vol";
-    btnPlus.textContent = "+";
-    btnPlus.title = "Volume up";
-    btnPlus.addEventListener("click", () => adjustVolume(0.1));
+    // ── Volume + speed rocker (hover the speaker icon) ──
+    const volWrap = buildRocker();
 
     // ── Separator ──
     const sep2 = document.createElement("span");
@@ -409,17 +544,16 @@ function updateOverlay(isPlaying, isPaused, progress = null) {
 
     bar = document.createElement("div");
     bar.className = "bar";
-    bar.append(brand, btnPP, lbl, prog, sep1, btnMinus, volVal, btnPlus, sep2, btnClose);
+    bar.append(brand, btnPP, lbl, prog, sep1, volWrap, sep2, btnClose);
     shadow.appendChild(bar);
   }
 
   const btnPP  = bar.querySelector(".btn-pp");
   const lbl    = bar.querySelector(".lbl");
-  const volVal = bar.querySelector(".vol-val");
   const progFill = bar.querySelector(".prog-fill");
 
-  // Always refresh volume display
-  if (volVal) volVal.textContent = fmtVol(_currentVolume);
+  // Reflect current engine + volume/speed onto the rocker
+  syncRocker(bar.querySelector(".vol-wrap"));
 
   if (progFill) {
     if (progress?.total > 0) {
