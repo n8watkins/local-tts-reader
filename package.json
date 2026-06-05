@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prepare": "git config core.hooksPath tools/hooks || true",
     "build": "node tools/build-extension-ui.mjs",
     "test": "node --test",
     "screenshots": "node tools/capture-screenshots.mjs"

@@ -43,8 +43,10 @@ PIPER_TTS_WINDOWS_NODE='/mnt/c/Program Files/nodejs/node.exe' npm run screenshot
 
 ```
 piper-tts/
-├── package.json             React UI build + screenshot scripts
-├── tools/                   esbuild and Puppeteer screenshot helpers
+├── package.json             React UI build + test + screenshot scripts
+├── tools/                   esbuild, test, and Puppeteer helpers
+│   └── hooks/               Git pre-commit hook (keeps dist in sync with src)
+├── test/                    Unit tests for shared UI helpers (node --test)
 ├── extension/              Chrome Manifest V3 extension
 │   ├── manifest.json
 │   ├── background.js       Service worker: context menu, routing
@@ -64,6 +66,26 @@ piper-tts/
     │       ├── *.onnx      ← you download these (see Step 4)
     │       └── *.onnx.json
     └── output/             Temp WAV files (auto-cleaned)
+```
+
+---
+
+## Development
+
+```bash
+npm install     # installs deps and enables the git hooks (see below)
+npm run build   # bundle extension/src → extension/dist
+npm test        # unit tests: shared UI helpers + the module service worker loads
+```
+
+The committed `extension/dist` bundles must always match `extension/src`. A
+tracked pre-commit hook (`tools/hooks/pre-commit`) rebuilds and re-stages them
+whenever a commit touches the UI sources or build tooling, so a forgotten
+`npm run build` can't ship a stale bundle. `npm install` enables it via the
+`prepare` script; to enable it manually run:
+
+```bash
+git config core.hooksPath tools/hooks
 ```
 
 ---
