@@ -1,11 +1,10 @@
 // ─── Constants ────────────────────────────────────────────────────────────────
-const PIPER_BASE_URL = "http://127.0.0.1:5050";
+// PIPER_BASE_URL and defaultProfile are shared with the React UI (src/shared.js)
+// so the server URL and the seed profile can't drift between the two.
+import { PIPER_BASE_URL, defaultProfile } from "./src/shared.js";
+
 const PIPER_URL      = `${PIPER_BASE_URL}/tts`;
 const OFFSCREEN_URL  = "offscreen.html";
-
-function defaultProfile() {
-  return { id: "default", name: "Profile 1", voice: "", rate: 1.0, volume: 1.0 };
-}
 
 async function getProfileState() {
   const state = await chrome.storage.local.get(["profiles", "activeId"]);
