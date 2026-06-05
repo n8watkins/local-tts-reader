@@ -76,7 +76,14 @@ piper-tts/
 npm install     # installs deps and enables the git hooks (see below)
 npm run build   # bundle extension/src → extension/dist
 npm test        # unit tests: shared UI helpers + the module service worker loads
+npm run version:patch   # bump the extension version (also :minor / :major)
 ```
+
+Bumping the version keeps `extension/manifest.json`, `package.json`, and
+`package-lock.json` in lockstep (the value Chrome shows for the loaded
+extension). Add `--dry` to preview without writing:
+`node tools/bump-version.mjs minor --dry`. The `local-piper-server` is versioned
+independently and is not touched.
 
 The committed `extension/dist` bundles must always match `extension/src`. A
 tracked pre-commit hook (`tools/hooks/pre-commit`) rebuilds and re-stages them
