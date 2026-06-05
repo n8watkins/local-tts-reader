@@ -77,7 +77,14 @@ npm install     # installs deps and enables the git hooks (see below)
 npm run build   # bundle extension/src → extension/dist
 npm test        # unit tests: shared UI helpers + the module service worker loads
 npm run version:patch   # bump the extension version (also :minor / :major)
+npm run deploy          # copy the built extension/ to the Windows folder Chrome loads
 ```
+
+`npm run deploy` mirrors `extension/` into the Windows project folder that Chrome
+loads unpacked (defaults to `…/Projects/Tools/piper-tts`, falling back to
+`…/local-tts-reader`; override with `PIPER_TTS_WINDOWS_DIR`). It only touches
+`extension/`, leaving the local server and its downloaded `piper.exe`/voices
+alone. Reload at `chrome://extensions` afterward to pick up the changes.
 
 Bumping the version keeps `extension/manifest.json`, `package.json`, and
 `package-lock.json` in lockstep (the value Chrome shows for the loaded

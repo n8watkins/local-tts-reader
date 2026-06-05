@@ -10,6 +10,7 @@
     "version:patch": "node tools/bump-version.mjs patch",
     "version:minor": "node tools/bump-version.mjs minor",
     "version:major": "node tools/bump-version.mjs major",
+    "deploy": "node tools/deploy-windows.mjs",
     "screenshots": "node tools/capture-screenshots.mjs"
   },
   "dependencies": {
