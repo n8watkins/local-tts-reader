@@ -89,7 +89,9 @@ const managedPid = () => {
 function startServer() {
   const out = fs.openSync(path.join(LOG_DIR, 'piper-tts-server.log'), 'a');
   const child = spawn(process.execPath, ['server.js'], {
-    cwd: SERVER_DIR, detached: true, stdio: ['ignore', out, out],
+    // windowsHide hides the console window a detached child would otherwise pop
+    // up on Windows — that was the CMD flash, not the (already-hidden) tray.
+    cwd: SERVER_DIR, detached: true, windowsHide: true, stdio: ['ignore', out, out],
   });
   try { fs.writeFileSync(PID_FILE, String(child.pid)); } catch { /* ignore */ }
   child.unref();
@@ -129,7 +131,7 @@ function openVoices() {
   const dir = path.join(SERVER_DIR, 'piper', 'voices');
   try { fs.mkdirSync(dir, { recursive: true }); } catch { /* ignore */ }
   const opener = isWin ? 'explorer.exe' : (process.platform === 'darwin' ? 'open' : 'xdg-open');
-  try { spawn(opener, [dir], { detached: true, stdio: 'ignore' }).unref(); } catch { /* ignore */ }
+  try { spawn(opener, [dir], { detached: true, windowsHide: true, stdio: 'ignore' }).unref(); } catch { /* ignore */ }
 }
 
 // ─── Launch at login (self-installing, per-OS) ───────────────────────────────
@@ -158,7 +160,7 @@ function installAutostart() {
       `$s.TargetPath='C:\\Windows\\System32\\wscript.exe';$s.Arguments='"${vbs}"';` +
       `$s.WorkingDirectory='${path.dirname(vbs)}';$s.WindowStyle=7;` +
       `$s.Description='Start Piper TTS tray at sign-in';$s.Save()`;
-    spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps], { stdio: 'ignore' });
+    spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps], { stdio: 'ignore', windowsHide: true });
   } else if (process.platform === 'darwin') {
     fs.writeFileSync(file,
 `<?xml version="1.0" encoding="UTF-8"?>
