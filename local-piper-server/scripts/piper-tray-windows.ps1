@@ -145,6 +145,20 @@ $stopItem.Add_Click({
 
 $voicesItem.Add_Click({ Open-VoicesFolder })
 
+# Left-click the icon to flash whether the server is live (right-click still
+# opens the full menu).
+$tray.Add_MouseClick({
+  param($traySender, $eventArgs)
+  if ($eventArgs.Button -ne [System.Windows.Forms.MouseButtons]::Left) { return }
+  Update-Tray
+  $online = Test-PiperOnline
+  $managed = $null -ne (Get-ManagedServerPid)
+  $state = if ($managed) { "online" } elseif ($online) { "online (external server)" } else { "offline" }
+  $tray.BalloonTipTitle = "Piper TTS"
+  $tray.BalloonTipText = "Server is $state"
+  $tray.ShowBalloonTip(2000)
+})
+
 $exitItem.Add_Click({
   $timer.Stop()
   $tray.Visible = $false
