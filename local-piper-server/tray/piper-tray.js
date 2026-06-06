@@ -218,6 +218,12 @@ async function refresh() {
   startItem.enabled = !online;
   stopItem.enabled = managed;
   restartItem.enabled = managed;
+
+  // update-menu only refreshes the icon/tooltip — the rendered menu items must be
+  // updated individually with update-item (same path the working login toggle uses).
+  for (const item of [statusItem, startItem, stopItem, restartItem]) {
+    systray.sendAction({ type: 'update-item', item }).catch(() => {});
+  }
   menu.icon = online ? ICON_ONLINE : ICON_OFFLINE;
   menu.tooltip = statusItem.title;
   systray.sendAction({ type: 'update-menu', menu }).catch(() => {});
