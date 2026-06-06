@@ -19,7 +19,12 @@ $AutoStartServer = $true
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
 $mutex = New-Object System.Threading.Mutex($false, "Local\PiperTtsSimpleTray")
-if (-not $mutex.WaitOne(0)) { exit 0 }
+# WaitOne throws AbandonedMutexException if a previous tray was force-killed
+# rather than exiting cleanly — that means the lock is now ours, not a conflict,
+# so treat it as acquired instead of crashing before the tray loads.
+try { $gotLock = $mutex.WaitOne(0) }
+catch [System.Threading.AbandonedMutexException] { $gotLock = $true }
+if (-not $gotLock) { exit 0 }
 
 function Test-PiperOnline {
   try {
