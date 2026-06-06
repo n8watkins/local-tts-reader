@@ -26,7 +26,7 @@ function sendProgress(current, total, label = "") {
 }
 
 // ─── Chunk Splitter ───────────────────────────────────────────────────────────
-function splitIntoChunks(text, maxLength = 350) {
+function splitIntoChunks(text, maxLength = 350, firstMaxLength = 140) {
   // C3 fix: was \S+$ (matched only the final word); [^.!?]+$ captures the full
   // trailing clause so unpunctuated text like "Hello world. No period here" keeps
   // all trailing words instead of dropping everything but "here".
@@ -36,8 +36,11 @@ function splitIntoChunks(text, maxLength = 350) {
   let current = "";
 
   for (const sentence of sentences) {
+    // Cap the first chunk smaller so the first audio synthesizes — and starts
+    // playing — sooner; later chunks use the full length for fewer requests.
+    const cap = chunks.length === 0 ? firstMaxLength : maxLength;
     const candidate = current ? current + " " + sentence : sentence;
-    if (candidate.length > maxLength) {
+    if (candidate.length > cap) {
       if (current.trim()) chunks.push(current.trim());
       current = sentence;
     } else {
@@ -214,44 +217,52 @@ async function playQueue(chunks, piperUrl, volume, rate, voice, generation) {
 
   const live = () => isPlaying && playGeneration === generation;
 
-  while (playbackQueue.length > 0 && live()) {
-    const chunk = playbackQueue.shift();
-    const currentChunk = totalChunks - playbackQueue.length;
+  // Pipeline: synthesize chunk i+1 while chunk i plays, so there's no gap
+  // between chunks and the rest is fetched while audio is already going. The
+  // .then(ok, err) wrapper keeps a prefetched promise from rejecting unhandled.
+  const fetchChunk = (i) => fetchPiperAudio(chunks[i], piperUrl, voice)
+    .then((blob) => ({ blob }), (err) => ({ err }));
+  let pending = fetchChunk(0);
+
+  const reportError = (err) => {
+    if (err && err.isStop === true) return; // intentional stop — exit silently
+    if (live()) {
+      console.error("TTS chunk error:", err);
+      failed = true;
+      chrome.runtime.sendMessage({
+        type: "playback-error",
+        engine: "piper",
+        error: (err && err.message) || "Piper playback failed."
+      }).catch(() => {});
+    }
+  };
+
+  for (let i = 0; i < totalChunks && live(); i++) {
+    sendProgress(i + 1, totalChunks, `${i + 1}/${totalChunks}`);
+    const { blob, err } = await pending;
+    // Kick off the next synthesis immediately so it overlaps this chunk.
+    if (i + 1 < totalChunks) pending = fetchChunk(i + 1);
+
+    if (err) { reportError(err); break; }
+    if (!live()) break;
+
+    // Between-chunk pause: wait until resume-audio clears the flag
+    if (isPaused) {
+      await new Promise(resolve => {
+        const check = setInterval(() => {
+          if (!isPaused || !live()) { clearInterval(check); resolve(); }
+        }, 100);
+      });
+      if (!live()) break;
+    }
 
     try {
-      sendProgress(currentChunk, totalChunks, `${currentChunk}/${totalChunks}`);
-      const blob = await fetchPiperAudio(chunk, piperUrl, voice);
-
-      if (!live()) break;
-
-      // Between-chunk pause: wait until resume-audio clears the flag
-      if (isPaused) {
-        await new Promise(resolve => {
-          const check = setInterval(() => {
-            if (!isPaused || !live()) { clearInterval(check); resolve(); }
-          }, 100);
-        });
-        if (!live()) break;
-      }
-
-      // Read the live module values (not the original params) so volume/speed
-      // changes from the overlay rocker carry across chunk boundaries.
+      // Read the live module values so volume/speed changes from the overlay
+      // rocker carry across chunk boundaries.
       await playBlob(blob, currentVolume, currentRate);
-
-    } catch (err) {
-      // V3: check sentinel flag, not message string
-      if (err.isStop === true) break; // intentional stop — exit silently
-
-      if (live()) {
-        // Real error mid-playback — log and stop (don't continue to next chunk)
-        console.error("TTS chunk error:", err);
-        failed = true;
-        chrome.runtime.sendMessage({
-          type: "playback-error",
-          engine: "piper",
-          error: err.message || "Piper playback failed."
-        }).catch(() => {});
-      }
+    } catch (playErr) {
+      if (playErr.isStop === true) break; // intentional stop
+      reportError(playErr);
       break;
     }
   }
