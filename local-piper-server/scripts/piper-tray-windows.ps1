@@ -95,6 +95,40 @@ function Get-TrayIcon {
   return [System.Drawing.SystemIcons]::Application
 }
 
+# Builds a copy of the tray icon with a small status dot in the top-left corner.
+function New-StatusIcon {
+  param([System.Drawing.Color]$DotColor)
+  $src = $null; $bmp = $null; $g = $null; $handle = [System.IntPtr]::Zero
+  try {
+    if (Test-Path $IconFile) {
+      $src = [System.Drawing.Bitmap]::FromFile($IconFile)
+      $bmp = New-Object System.Drawing.Bitmap $src, $src.Width, $src.Height
+    } else {
+      $bmp = ([System.Drawing.SystemIcons]::Application).ToBitmap()
+    }
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $d = [int]($bmp.Width * 0.40)
+    # Dark ring first (contrast on light icons), then the colored dot inside it.
+    $g.FillEllipse([System.Drawing.Brushes]::Black, 0, 0, ($d + 3), ($d + 3))
+    $brush = New-Object System.Drawing.SolidBrush $DotColor
+    $g.FillEllipse($brush, 2, 2, $d, $d)
+    $brush.Dispose()
+    $handle = $bmp.GetHicon()
+    $icon = [System.Drawing.Icon]::FromHandle($handle)
+    return [System.Drawing.Icon]$icon.Clone()
+  } finally {
+    if ($handle -ne [System.IntPtr]::Zero) { [Win32.NativeMethods]::DestroyIcon($handle) | Out-Null }
+    if ($g)   { $g.Dispose() }
+    if ($bmp) { $bmp.Dispose() }
+    if ($src) { $src.Dispose() }
+  }
+}
+
+# Built once and reused, so the per-tick refresh never allocates GDI handles.
+$script:IconOnline  = New-StatusIcon ([System.Drawing.Color]::FromArgb(255, 64, 192, 87))  # green
+$script:IconOffline = New-StatusIcon ([System.Drawing.Color]::FromArgb(255, 224, 75, 59))  # red
+
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
 $statusItem = $menu.Items.Add("Piper TTS: checking...")
 $statusItem.Enabled = $false
@@ -127,6 +161,9 @@ function Update-Tray {
     $tray.Text = "Piper TTS - offline"
   }
 
+  # Green dot when a server is reachable, red when not.
+  $tray.Icon = if ($online) { $script:IconOnline } else { $script:IconOffline }
+
   $startItem.Enabled = -not $online
   $stopItem.Enabled = $managed
   $stopItem.Text = if ($online -and -not $managed) { "Stop Server (managed only)" } else { "Stop Server" }
@@ -150,24 +187,12 @@ $stopItem.Add_Click({
 
 $voicesItem.Add_Click({ Open-VoicesFolder })
 
-# Left-click the icon to flash whether the server is live (right-click still
-# opens the full menu).
-$tray.Add_MouseClick({
-  param($traySender, $eventArgs)
-  if ($eventArgs.Button -ne [System.Windows.Forms.MouseButtons]::Left) { return }
-  Update-Tray
-  $online = Test-PiperOnline
-  $managed = $null -ne (Get-ManagedServerPid)
-  $state = if ($managed) { "online" } elseif ($online) { "online (external server)" } else { "offline" }
-  $tray.BalloonTipTitle = "Piper TTS"
-  $tray.BalloonTipText = "Server is $state"
-  $tray.ShowBalloonTip(2000)
-})
-
 $exitItem.Add_Click({
   $timer.Stop()
   $tray.Visible = $false
   $tray.Dispose()
+  if ($script:IconOnline)  { $script:IconOnline.Dispose() }
+  if ($script:IconOffline) { $script:IconOffline.Dispose() }
   [System.Windows.Forms.Application]::Exit()
 })
 
