@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$Launcher = Join-Path $PSScriptRoot "start-piper-tray-windows.bat"
+$Launcher = Join-Path $PSScriptRoot "start-piper-tray.bat"
 $StartupDir = [Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)
 $ShortcutPath = Join-Path $StartupDir "Piper TTS Tray.lnk"
 
