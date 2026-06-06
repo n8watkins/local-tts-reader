@@ -137,6 +137,22 @@ npm run build
 
 ---
 
+### Quick setup (one command)
+
+Instead of steps 3–6 below, from `local-piper-server/` run:
+
+```bash
+npm run setup
+```
+
+This adapts to your OS: it installs dependencies, downloads the Piper binary and
+a default voice (`en_US-amy-medium`), starts the local server, and adds a tray
+(green/red status dot) that auto-starts at login. It's idempotent — re-run it
+anytime; anything already in place is skipped. Add or remove voices later from
+the extension's **Settings → Voices**. Steps 3–6 are the manual equivalent.
+
+---
+
 ### Step 3 — Download Piper TTS
 
 Piper is a fast, offline text-to-speech engine. Download the build for your OS:

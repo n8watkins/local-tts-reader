@@ -4,6 +4,7 @@
   "description": "Local Express server that calls Piper TTS and returns WAV audio",
   "main": "server.js",
   "scripts": {
+    "setup": "node setup.js",
     "start": "node server.js",
     "dev": "node --watch server.js",
     "start:unix": "sh scripts/start-unix.sh",
