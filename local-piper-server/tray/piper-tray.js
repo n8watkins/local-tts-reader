@@ -13,6 +13,7 @@ const SysTray = require('systray2').default;
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const os = require('os');
 const { spawn } = require('child_process');
 
 const TRAY_DIR = __dirname;
@@ -95,18 +96,73 @@ function openVoices() {
   try { spawn(opener, [dir], { detached: true, stdio: 'ignore' }).unref(); } catch { /* ignore */ }
 }
 
+// ─── Launch at login (self-installing, per-OS) ───────────────────────────────
+// The path of the autostart entry for the current OS.
+function autostartFile() {
+  if (isWin) {
+    return path.join(process.env.APPDATA || os.homedir(),
+      'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'Piper TTS Tray.lnk');
+  }
+  if (process.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library', 'LaunchAgents', 'com.n8.pipertts.tray.plist');
+  }
+  return path.join(os.homedir(), '.config', 'autostart', 'piper-tts-tray.desktop');
+}
+const isAutostartInstalled = () => { try { return fs.existsSync(autostartFile()); } catch { return false; } };
+
+function installAutostart() {
+  const file = autostartFile();
+  const script = path.join(TRAY_DIR, 'piper-tray.js');
+  try { fs.mkdirSync(path.dirname(file), { recursive: true }); } catch { /* ignore */ }
+  if (isWin) {
+    // A Startup shortcut to the hidden launcher (no console flash at login).
+    const launcher = path.join(SERVER_DIR, 'scripts', 'start-piper-tray.bat');
+    const ps = `$s=(New-Object -ComObject WScript.Shell).CreateShortcut('${file}');` +
+      `$s.TargetPath='${launcher}';$s.WorkingDirectory='${path.dirname(launcher)}';` +
+      `$s.WindowStyle=7;$s.Description='Start Piper TTS tray at sign-in';$s.Save()`;
+    spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps], { stdio: 'ignore' });
+  } else if (process.platform === 'darwin') {
+    fs.writeFileSync(file,
+`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.n8.pipertts.tray</string>
+  <key>ProgramArguments</key><array><string>${process.execPath}</string><string>${script}</string></array>
+  <key>RunAtLoad</key><true/>
+</dict></plist>
+`);
+    try { spawn('launchctl', ['load', file], { stdio: 'ignore' }); } catch { /* ignore */ }
+  } else {
+    fs.writeFileSync(file,
+`[Desktop Entry]
+Type=Application
+Name=Piper TTS Tray
+Exec=${process.execPath} ${script}
+X-GNOME-Autostart-enabled=true
+Terminal=false
+`);
+  }
+}
+
+function removeAutostart() {
+  const file = autostartFile();
+  if (process.platform === 'darwin') { try { spawn('launchctl', ['unload', file], { stdio: 'ignore' }); } catch { /* ignore */ } }
+  try { fs.unlinkSync(file); } catch { /* ignore */ }
+}
+
 // ─── Menu ────────────────────────────────────────────────────────────────────
 const sep = () => Object.assign({}, SysTray.separator);
 const statusItem = { title: 'Piper TTS: checking…', tooltip: '', enabled: false };
 const startItem = { title: 'Start Server', tooltip: 'Start the local Piper server', enabled: true };
 const stopItem = { title: 'Stop Server', tooltip: 'Stop the managed server', enabled: false };
 const voicesItem = { title: 'Open Voices Folder', tooltip: '', enabled: true };
+const loginItem = { title: 'Launch at login', tooltip: 'Start the tray automatically at sign-in', checked: isAutostartInstalled(), enabled: true };
 const quitItem = { title: 'Quit', tooltip: '', enabled: true };
 const menu = {
   icon: ICON_OFFLINE,
   title: 'Piper TTS',
   tooltip: 'Piper TTS',
-  items: [statusItem, sep(), startItem, stopItem, sep(), voicesItem, quitItem],
+  items: [statusItem, sep(), startItem, stopItem, sep(), voicesItem, loginItem, sep(), quitItem],
 };
 const systray = new SysTray({ menu, debug: false, copyDir: true });
 
@@ -143,6 +199,11 @@ systray.onClick((action) => {
     case 'Start Server': intendedRunning = true; restarts = 0; startServer(); setTimeout(refresh, 800); break;
     case 'Stop Server': intendedRunning = false; stopServer(); setTimeout(refresh, 800); break;
     case 'Open Voices Folder': openVoices(); break;
+    case 'Launch at login':
+      if (isAutostartInstalled()) { removeAutostart(); loginItem.checked = false; }
+      else { installAutostart(); loginItem.checked = true; }
+      systray.sendAction({ type: 'update-item', item: loginItem }).catch(() => {});
+      break;
     case 'Quit': shutdown(); break;
     default: break;
   }
@@ -157,6 +218,12 @@ process.on('SIGINT', () => { shutdown(); });
 process.on('SIGTERM', () => { shutdown(); });
 
 systray.ready().then(async () => {
+  // Self-install autostart on first run; reflect the result in the menu.
+  if (!isAutostartInstalled()) {
+    installAutostart();
+    loginItem.checked = true;
+    systray.sendAction({ type: 'update-item', item: loginItem }).catch(() => {});
+  }
   if (!(await checkHealth())) { intendedRunning = true; startServer(); } // auto-start if offline
   else { intendedRunning = managedPid() !== null; }
   await refresh();
