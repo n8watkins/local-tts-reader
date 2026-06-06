@@ -7,6 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "start:unix": "sh scripts/start-unix.sh",
+    "tray": "node tray/piper-tray.js",
     "start:windows": "powershell -ExecutionPolicy Bypass -File scripts/start-windows.ps1",
     "start:windows:bg": "powershell -ExecutionPolicy Bypass -File scripts/start-background-windows.ps1",
     "stop:windows:bg": "powershell -ExecutionPolicy Bypass -File scripts/stop-background-windows.ps1",
@@ -16,7 +17,8 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "systray2": "^2.1.4"
   },
   "engines": {
     "node": ">=18"
