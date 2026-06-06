@@ -131,7 +131,8 @@ function runPiper({ text, outputPath, voiceModel }) {
 
     let proc;
     try {
-      proc = spawn(PIPER_BIN, args);
+      // windowsHide stops piper.exe from popping a console window on each request.
+      proc = spawn(PIPER_BIN, args, { windowsHide: true });
     } catch (err) {
       return reject(new Error(`Failed to spawn Piper: ${err.message}`));
     }
