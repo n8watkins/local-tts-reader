@@ -45,7 +45,7 @@ try {
   }
 
   if (-not $env:HOST) { $env:HOST = "127.0.0.1" }
-  if (-not $env:PORT) { $env:PORT = "5050" }
+  if (-not $env:PORT) { $env:PORT = "7477" }
   if (-not $env:VOICE_DIR) { $env:VOICE_DIR = Join-Path $ServerDir "piper\voices" }
   if (-not $env:OUTPUT_DIR) { $env:OUTPUT_DIR = Join-Path $ServerDir "output" }
   if (-not $env:PIPER_BIN) {

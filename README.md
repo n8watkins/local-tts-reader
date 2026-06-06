@@ -268,7 +268,7 @@ npm run uninstall:windows:tray
 You should see:
 ```
 🔊 Piper TTS Local Server
-   Running at http://127.0.0.1:5050
+   Running at http://127.0.0.1:7477
 ```
 
 The server must be running whenever you want to use local TTS.
@@ -369,7 +369,7 @@ Chrome Manifest V3 service workers cannot play audio directly, so Piper audio pl
 → Make sure the extension is loaded and enabled at `chrome://extensions`.
 
 **Popup shows "Piper Offline"**  
-→ Run `npm start` inside `local-piper-server/`. Check that port 5050 is not blocked.
+→ Run `npm start` inside `local-piper-server/`. Check that port 7477 is not blocked.
 
 **No audio / silent playback**  
 → Open Chrome DevTools (F12 → Console) and look for errors. Common causes: no voice model downloaded, wrong voice filename, Piper executable not found.

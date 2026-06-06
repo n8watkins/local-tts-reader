@@ -649,7 +649,7 @@ function OptionsApp() {
             <h3 className="settings-group-title">Piper Server</h3>
             <div className="setting-row setting-row-info">
               <span className="setting-label">Address</span>
-              <code className="setting-code">http://127.0.0.1:5050</code>
+              <code className="setting-code">http://127.0.0.1:7477</code>
             </div>
             <div className="setting-row setting-row-info">
               <span className="setting-label">Status</span>
@@ -701,7 +701,7 @@ function OptionsApp() {
             <h4 className="credits-section-title">How It Works</h4>
             <ol className="how-it-works-list">
               <li><span className="flow-step">1</span><div><strong>Highlight text</strong> on any webpage and right-click → <em>Read selected text aloud</em>.</div></li>
-              <li><span className="flow-step">2</span><div>The extension's <strong>background service worker</strong> checks if the local Piper server is reachable at <code>http://127.0.0.1:5050</code>.</div></li>
+              <li><span className="flow-step">2</span><div>The extension's <strong>background service worker</strong> checks if the local Piper server is reachable at <code>http://127.0.0.1:7477</code>.</div></li>
               <li><span className="flow-step">3</span><div>The text is split into sentence chunks and sent to the <strong>local Node.js server</strong>, which calls <code>piper.exe</code> and streams back WAV audio.</div></li>
               <li><span className="flow-step">4</span><div>An <strong>offscreen document</strong> receives each chunk and plays it through the Web Audio API — Chrome's Manifest V3 service workers can't play audio directly.</div></li>
               <li><span className="flow-step">5</span><div>If Piper is offline or generation fails and <em>Browser TTS fallback</em> is on (Settings), the browser's built-in voice is used instead.</div></li>

@@ -13,7 +13,7 @@ $StopScript = Join-Path $PSScriptRoot "stop-background-windows.ps1"
 $LogDir = Join-Path $ServerDir "logs"
 $PidFile = Join-Path $LogDir "piper-tts-server.pid"
 $IconFile = Join-Path (Split-Path -Parent $ServerDir) "extension\icons\icon128.png"
-$HealthUrl = "http://127.0.0.1:5050/health"
+$HealthUrl = "http://127.0.0.1:7477/health"
 $AutoStartServer = $true
 
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null

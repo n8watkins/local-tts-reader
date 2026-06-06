@@ -1,4 +1,4 @@
-export const PIPER_BASE_URL = 'http://127.0.0.1:5050';
+export const PIPER_BASE_URL = 'http://127.0.0.1:7477';
 export const MAX_PROFILES = 5;
 export const MAX_FAVORITES = 5;
 

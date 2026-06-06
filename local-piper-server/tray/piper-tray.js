@@ -24,7 +24,7 @@ const LOG_DIR = path.join(SERVER_DIR, 'logs');
 const PID_FILE = path.join(LOG_DIR, 'piper-tts-server.pid');
 const LOCK_FILE = path.join(LOG_DIR, 'piper-tray.lock');
 const HOST = '127.0.0.1';
-const PORT = 5050;
+const PORT = 7477;
 const isWin = process.platform === 'win32';
 const ICON_EXT = isWin ? 'ico' : 'png'; // Windows tray needs .ico; mac/linux use .png
 const MAX_RESTARTS = 3;

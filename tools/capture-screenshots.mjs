@@ -64,7 +64,7 @@ const chromeShim = `
   const originalFetch = window.fetch.bind(window);
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input.url;
-    if (url && url.startsWith('http://127.0.0.1:5050')) {
+    if (url && url.startsWith('http://127.0.0.1:7477')) {
       const path = new URL(url).pathname;
       if (path === '/health') {
         return new Response(JSON.stringify({ status: 'ok', version: '1.0.0' }), {

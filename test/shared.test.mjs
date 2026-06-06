@@ -14,7 +14,7 @@ import {
 } from '../extension/src/shared.js';
 
 test('constants have expected values', () => {
-  assert.equal(PIPER_BASE_URL, 'http://127.0.0.1:5050');
+  assert.equal(PIPER_BASE_URL, 'http://127.0.0.1:7477');
   assert.equal(MAX_PROFILES, 5);
   assert.equal(MAX_FAVORITES, 5);
 });
