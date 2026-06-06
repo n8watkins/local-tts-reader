@@ -655,6 +655,14 @@ function OptionsApp() {
               <span className="setting-label">Status</span>
               <span style={{ color: serverOnline ? '#a6e3a1' : '#f38ba8' }}>{serverOnline ? 'Online ✓' : 'Offline ✗'}</span>
             </div>
+            <div className="setting-row setting-row-info">
+              <span className="setting-label">Set up</span>
+              <span className="setting-desc">
+                {serverOnline ? 'Manage the server from the tray (green/red status dot). ' : 'No local server detected. '}
+                Run <code className="setting-code">npm run setup</code> in <code className="setting-code">local-piper-server/</code> to install Piper, a voice, and the tray.{' '}
+                <a href="https://github.com/n8watkins/piper-tts#quick-setup-one-command" target="_blank" rel="noreferrer" style={{ color: '#cba6f7' }}>Setup guide ↗</a>
+              </span>
+            </div>
           </div>
           <div className="settings-group">
             <h3 className="settings-group-title">Keyboard Shortcuts</h3>
