@@ -84,6 +84,7 @@ function startServer() {
   });
   try { fs.writeFileSync(PID_FILE, String(child.pid)); } catch { /* ignore */ }
   child.unref();
+  try { fs.closeSync(out); } catch { /* ignore */ } // child keeps its own dup; don't leak our fd
 }
 function stopServer() {
   const pid = managedPid();
@@ -178,7 +179,7 @@ function removeAutostart() {
 
 // ─── Menu ────────────────────────────────────────────────────────────────────
 const sep = () => Object.assign({}, SysTray.separator);
-const statusItem = { title: 'Piper TTS: checking…', tooltip: '', enabled: false };
+const statusItem = { title: 'Status: checking…', tooltip: '', enabled: false };
 const startItem = { title: 'Start Server', tooltip: 'Start the local Piper server', enabled: true };
 const stopItem = { title: 'Stop Server', tooltip: 'Stop the managed server', enabled: false };
 const restartItem = { title: 'Restart Server', tooltip: 'Stop and start the managed server', enabled: false };
