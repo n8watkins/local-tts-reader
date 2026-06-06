@@ -13,6 +13,7 @@ const SysTray = require('systray2').default;
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const net = require('net');
 const os = require('os');
 const { spawn } = require('child_process');
 
@@ -89,6 +90,31 @@ function stopServer() {
   if (pid) { try { process.kill(pid); } catch { /* ignore */ } }
   try { fs.unlinkSync(PID_FILE); } catch { /* ignore */ }
 }
+// Is something already listening on the port? (Used so a restart waits for the
+// old process to release it — otherwise the new server hits EADDRINUSE.)
+const portInUse = () => new Promise((resolve) => {
+  const s = net.connect({ host: HOST, port: PORT });
+  s.on('connect', () => { s.destroy(); resolve(true); });
+  s.on('error', () => resolve(false));
+  s.setTimeout(600, () => { s.destroy(); resolve(false); });
+});
+// Start the server, but first wait (briefly) for the port to be free, and never
+// overlap two start attempts. This makes restart-after-crash and the Restart
+// menu item reliable instead of racing the dying process.
+let starting = false;
+async function startServerSafely() {
+  if (starting) return;
+  starting = true;
+  try {
+    const deadline = Date.now() + 12000;
+    while ((await portInUse()) && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 600));
+    }
+    startServer();
+  } finally {
+    setTimeout(() => { starting = false; }, 1500); // let it bind before another attempt
+  }
+}
 function openVoices() {
   const dir = path.join(SERVER_DIR, 'piper', 'voices');
   try { fs.mkdirSync(dir, { recursive: true }); } catch { /* ignore */ }
@@ -155,6 +181,7 @@ const sep = () => Object.assign({}, SysTray.separator);
 const statusItem = { title: 'Piper TTS: checking…', tooltip: '', enabled: false };
 const startItem = { title: 'Start Server', tooltip: 'Start the local Piper server', enabled: true };
 const stopItem = { title: 'Stop Server', tooltip: 'Stop the managed server', enabled: false };
+const restartItem = { title: 'Restart Server', tooltip: 'Stop and start the managed server', enabled: false };
 const voicesItem = { title: 'Open Voices Folder', tooltip: '', enabled: true };
 const loginItem = { title: 'Launch at login', tooltip: 'Start the tray automatically at sign-in', checked: isAutostartInstalled(), enabled: true };
 const quitItem = { title: 'Quit', tooltip: '', enabled: true };
@@ -162,7 +189,7 @@ const menu = {
   icon: ICON_OFFLINE,
   title: 'Piper TTS',
   tooltip: 'Piper TTS',
-  items: [statusItem, sep(), startItem, stopItem, sep(), voicesItem, loginItem, sep(), quitItem],
+  items: [statusItem, sep(), startItem, stopItem, restartItem, sep(), voicesItem, loginItem, sep(), quitItem],
 };
 const systray = new SysTray({ menu, debug: false, copyDir: true });
 
@@ -175,8 +202,8 @@ async function refresh() {
   const managed = managedPid() !== null;
 
   // Crash supervision: if we wanted it up and it died (not just starting), restart.
-  if (intendedRunning && !online && !managed) {
-    if (restarts < MAX_RESTARTS) { restarts += 1; startServer(); }
+  if (intendedRunning && !online && !managed && !starting) {
+    if (restarts < MAX_RESTARTS) { restarts += 1; startServerSafely(); }
   }
   if (online) restarts = 0;
 
@@ -185,10 +212,11 @@ async function refresh() {
   lastKey = key;
 
   statusItem.title = online
-    ? (managed ? 'Piper TTS: online' : 'Piper TTS: online (external)')
-    : 'Piper TTS: offline';
+    ? (managed ? 'Status: Running' : 'Status: Running (external)')
+    : 'Status: Stopped';
   startItem.enabled = !online;
   stopItem.enabled = managed;
+  restartItem.enabled = managed;
   menu.icon = online ? ICON_ONLINE : ICON_OFFLINE;
   menu.tooltip = statusItem.title;
   systray.sendAction({ type: 'update-menu', menu }).catch(() => {});
@@ -196,8 +224,14 @@ async function refresh() {
 
 systray.onClick((action) => {
   switch (action.item && action.item.title) {
-    case 'Start Server': intendedRunning = true; restarts = 0; startServer(); setTimeout(refresh, 800); break;
+    case 'Start Server': intendedRunning = true; restarts = 0; startServerSafely(); setTimeout(refresh, 1200); break;
     case 'Stop Server': intendedRunning = false; stopServer(); setTimeout(refresh, 800); break;
+    case 'Restart Server':
+      intendedRunning = true; restarts = 0;
+      stopServer();
+      startServerSafely(); // waits for the port to free before starting
+      setTimeout(refresh, 1500);
+      break;
     case 'Open Voices Folder': openVoices(); break;
     case 'Launch at login':
       if (isAutostartInstalled()) { removeAutostart(); loginItem.checked = false; }
@@ -224,7 +258,7 @@ systray.ready().then(async () => {
     loginItem.checked = true;
     systray.sendAction({ type: 'update-item', item: loginItem }).catch(() => {});
   }
-  if (!(await checkHealth())) { intendedRunning = true; startServer(); } // auto-start if offline
+  if (!(await checkHealth())) { intendedRunning = true; startServerSafely(); } // auto-start if offline
   else { intendedRunning = managedPid() !== null; }
   await refresh();
   setInterval(refresh, 2000);
