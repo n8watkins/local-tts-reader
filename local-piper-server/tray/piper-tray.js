@@ -33,18 +33,27 @@ fs.mkdirSync(LOG_DIR, { recursive: true });
 
 // ─── Single instance (portable lockfile + stale-lock recovery) ───────────────
 const isAlive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
-(function acquireLock() {
+(function acquireLock(attempt = 0) {
   try {
-    if (fs.existsSync(LOCK_FILE)) {
-      const owner = parseInt(fs.readFileSync(LOCK_FILE, 'utf8').trim(), 10);
+    // 'wx' = create exclusively; fails atomically if the file exists, so two
+    // instances starting at once can't both win the lock (fixes the race where
+    // both passed an existsSync check before either wrote).
+    const fd = fs.openSync(LOCK_FILE, 'wx');
+    fs.writeSync(fd, String(process.pid));
+    fs.closeSync(fd);
+  } catch (err) {
+    if (err && err.code === 'EEXIST') {
+      let owner = 0;
+      try { owner = parseInt(fs.readFileSync(LOCK_FILE, 'utf8').trim(), 10); } catch { /* ignore */ }
       if (owner && owner !== process.pid && isAlive(owner)) {
         console.error(`Piper tray already running (pid ${owner}); exiting.`);
         process.exit(0);
       }
-      // else: stale lock from a crashed/killed instance — take it over.
+      // Stale lock (owner gone) — clear it once and retry.
+      if (attempt < 1) { fs.rmSync(LOCK_FILE, { force: true }); acquireLock(attempt + 1); return; }
     }
-    fs.writeFileSync(LOCK_FILE, String(process.pid));
-  } catch { /* non-fatal */ }
+    // Any other error: proceed without a lock rather than failing to launch.
+  }
 })();
 const releaseLock = () => {
   try {
