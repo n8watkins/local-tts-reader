@@ -151,11 +151,13 @@ function installAutostart() {
   const script = path.join(TRAY_DIR, 'piper-tray.js');
   try { fs.mkdirSync(path.dirname(file), { recursive: true }); } catch { /* ignore */ }
   if (isWin) {
-    // A Startup shortcut to the hidden launcher (no console flash at login).
-    const launcher = path.join(SERVER_DIR, 'scripts', 'start-piper-tray.bat');
+    // Startup shortcut runs the .vbs via wscript (a windowless host) so node
+    // starts hidden — no CMD flash at login, unlike a .bat launcher.
+    const vbs = path.join(SERVER_DIR, 'scripts', 'start-piper-tray.vbs');
     const ps = `$s=(New-Object -ComObject WScript.Shell).CreateShortcut('${file}');` +
-      `$s.TargetPath='${launcher}';$s.WorkingDirectory='${path.dirname(launcher)}';` +
-      `$s.WindowStyle=7;$s.Description='Start Piper TTS tray at sign-in';$s.Save()`;
+      `$s.TargetPath='C:\\Windows\\System32\\wscript.exe';$s.Arguments='"${vbs}"';` +
+      `$s.WorkingDirectory='${path.dirname(vbs)}';$s.WindowStyle=7;` +
+      `$s.Description='Start Piper TTS tray at sign-in';$s.Save()`;
     spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps], { stdio: 'ignore' });
   } else if (process.platform === 'darwin') {
     fs.writeFileSync(file,

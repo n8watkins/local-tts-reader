@@ -12,7 +12,7 @@
     "start:windows": "powershell -ExecutionPolicy Bypass -File scripts/start-windows.ps1",
     "start:windows:bg": "powershell -ExecutionPolicy Bypass -File scripts/start-background-windows.ps1",
     "stop:windows:bg": "powershell -ExecutionPolicy Bypass -File scripts/stop-background-windows.ps1",
-    "start:windows:tray": "scripts\\start-piper-tray.bat",
+    "start:windows:tray": "wscript scripts\\start-piper-tray.vbs",
     "install:windows:tray": "powershell -ExecutionPolicy Bypass -File scripts/install-tray-startup-windows.ps1",
     "uninstall:windows:tray": "powershell -ExecutionPolicy Bypass -File scripts/uninstall-tray-startup-windows.ps1"
   },
