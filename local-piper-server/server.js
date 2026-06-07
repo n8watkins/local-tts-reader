@@ -21,8 +21,7 @@ const { spawn } = require("child_process");
 const { version } = require("./package.json");
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-const PORT       = Number(process.env.PORT || 7477);
-const HOST       = process.env.HOST || "127.0.0.1"; // localhost only by default
+const { PORT, HOST } = require("./config"); // shared with the tray so they agree
 const MAX_CHARS  = 8000;        // reasonable limit per request
 const TIMEOUT_MS = 60_000;      // kill Piper if it hangs
 
