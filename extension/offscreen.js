@@ -57,8 +57,18 @@ function splitIntoChunks(text, maxLength = 350, firstMaxLength = 140) {
 // leaves the queue hanging indefinitely.
 const FETCH_TIMEOUT_MS = 30_000;
 
+// In-flight fetches so a stop (or a new speak request) can abort a prefetch
+// that's still synthesizing on the server — otherwise the discarded chunk keeps
+// running for up to FETCH_TIMEOUT_MS, wasting Piper CPU on audio nobody hears.
+const activeFetches = new Set();
+function abortPendingFetches() {
+  for (const c of activeFetches) { try { c.abort(); } catch (_) {} }
+  activeFetches.clear();
+}
+
 async function fetchPiperAudio(text, piperUrl, voice = "") {
   const controller = new AbortController();
+  activeFetches.add(controller);
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   let response;
@@ -71,6 +81,7 @@ async function fetchPiperAudio(text, piperUrl, voice = "") {
     });
   } finally {
     clearTimeout(timer); // always clear, whether fetch succeeded, failed, or aborted
+    activeFetches.delete(controller);
   }
 
   if (!response.ok) {
@@ -201,6 +212,7 @@ function stopAll() {
   playbackQueue = [];
   isPlaying = false;
   isPaused  = false;
+  abortPendingFetches(); // cancel any prefetch still synthesizing on the server
   stopCurrentAudio();
 }
 
@@ -208,7 +220,11 @@ function stopAll() {
 // Architectural simplification: background.js now does a health-check pre-flight
 // and fires speak-text as fire-and-forget, so playQueue no longer needs to call
 // sendResponse. It simply plays chunks until done, stopped, or an error occurs.
-async function playQueue(chunks, piperUrl, volume, rate, voice, generation) {
+// volume/rate are intentionally NOT parameters: playBlob reads the live module
+// values currentVolume/currentRate (set by speak-text and updated by the overlay
+// rocker) so adjustments carry across chunk boundaries. Passing them in would
+// invite a refactor that silently breaks live adjustment.
+async function playQueue(chunks, piperUrl, voice, generation) {
   isPlaying = true;
   playbackQueue = [...chunks];
   const totalChunks = chunks.length;
@@ -337,7 +353,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     // Fire-and-forget: background.js no longer awaits a response, so respond
     // immediately and let playback run independently. This eliminates the
     // long-lived message channel that Chrome was killing mid-flight.
-    playQueue(chunks, piperUrl, volume, rate, voice, gen).catch((err) => {
+    playQueue(chunks, piperUrl, voice, gen).catch((err) => {
       console.error("Queue playback error:", err);
     });
 
