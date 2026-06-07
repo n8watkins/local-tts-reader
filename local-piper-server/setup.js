@@ -49,6 +49,14 @@ const run = (cmd, args, cwd, opts = {}) => execFileSync(cmd, args, { cwd, stdio:
 function download(url, dest, redirects = 6) {
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(dest);
+    // A write failure (disk full, read-only dest) emits 'error' on the stream,
+    // not on the request — without this listener it would be an unhandled event
+    // that crashes the whole setup instead of rejecting cleanly.
+    file.on('error', (err) => {
+      try { file.close(); } catch { /* ignore */ }
+      fs.rmSync(dest, { force: true });
+      reject(err);
+    });
     https.get(url, { headers: { 'User-Agent': 'piper-tts-setup' } }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         file.close();
